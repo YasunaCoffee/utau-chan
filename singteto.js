@@ -181,7 +181,44 @@ function sampleF0(file, cEnd, end) {
   return f;
 }
 
-/* ---- 1音を合成: 固定頭(前母音→子音→母音頭) + 母音XFループ(ビブラート付き) ---- */
+// TD-PSOLA: 母音の定常部をピッチ同期の波形粒(2周期Hann)で重畳し、
+// フォルマントを保ったまま目標ピッチへ移調&任意長へ伸長する。ループのうなりも出ない。
+function psolaSustain(src, cEnd, end, f0src, fTarget, N, seed) {
+  const out = new Float32Array(Math.max(0, N));
+  if (N <= 0) return out;
+  const P0 = Math.max(2, Math.round(SR / f0src));         // 元の基本周期
+  const vlen = end - cEnd;
+  const v0 = cEnd + Math.max(P0, Math.floor(vlen * 0.12)); // 定常部(遷移/末尾を避ける)
+  const v1 = cEnd + Math.min(vlen - P0, Math.max(4 * P0, Math.floor(vlen * 0.7)));
+  const marks = [];
+  for (let m = v0; m <= v1; m += P0) marks.push(m);
+  if (marks.length < 2) {                                 // 母音が短すぎ: 単純ループで代替
+    for (let k = 0; k < N; k++) out[k] = interp(src, cEnd + (k % Math.max(1, vlen)));
+    return out;
+  }
+  const vibHz = 5.7, vibPeak = useVib ? 0.0163 : 0, vibDelay = 0.22 * SR, vibRamp = 0.18 * SR;
+  const half = P0, PtBase = SR / fTarget;
+  let outPos = 0, mi = 0, dir = 1;
+  while (outPos < N) {
+    let vd = 0;
+    if (useVib && outPos > vibDelay) { const g = Math.min(1, (outPos - vibDelay) / vibRamp); vd = vibPeak * g * Math.sin(2 * Math.PI * vibHz * outPos / SR + seed); }
+    const Pt = PtBase / (1 + vd);                         // 目標周期(ビブラートで変調)
+    const im = marks[mi], c = Math.round(outPos);
+    const gain = Math.min(1.5, Pt / P0);                  // OLA密度の補正
+    for (let k = -half; k <= half; k++) {
+      const oi = c + k; if (oi < 0 || oi >= N) continue;
+      const si = im + k; if (si < 0 || si >= src.length) continue;
+      out[oi] += src[si] * (0.5 - 0.5 * Math.cos(Math.PI * (k + half) / half)) * gain;
+    }
+    outPos += Pt;
+    mi += dir;                                            // マーク列をピンポンして定常母音を持続
+    if (mi >= marks.length - 1) { mi = marks.length - 1; dir = -1; }
+    else if (mi <= 0) { mi = 0; dir = 1; }
+  }
+  return out;
+}
+
+/* ---- 1音を合成: 固定頭(前母音→子音→母音頭) + 母音PSOLA持続 ---- */
 // 返り値の buf は 拍前(preOut)+音価+余裕 の長さ。配置と音間クロスフェードは呼び出し側。
 function buildNote(rec, midi, durSamp, seed, phraseStart) {
   const src = readWav(rec.file).data;
@@ -192,44 +229,32 @@ function buildNote(rec, midi, durSamp, seed, phraseStart) {
   cEnd = Math.min(cEnd, end - ms(40));
   if (cEnd <= offSamp) cEnd = Math.min(offSamp + ms(40), end - ms(10));
 
-  // 語頭で母音付きエイリアスを借りた場合、先頭の余分な母音を切って前置きを35msに
+  // 先行発声(頭の前母音)が長いと、前の音が次の子音直前まで届かず境界に音量の谷ができる。
+  // 前母音は子音直前ぶんだけ残して切り詰める(語頭はさらに短く)。
   let s0 = offSamp, preMs = rec.pre;
-  if (phraseStart && rec.pre > 80) { s0 = Math.min(offSamp + ms(rec.pre) - ms(35), cEnd - ms(5)); preMs = 35; }
+  const leadCap = phraseStart ? 35 : 90;
+  if (rec.pre > leadCap) { s0 = Math.min(offSamp + ms(rec.pre - leadCap), cEnd - ms(5)); preMs = leadCap; }
 
   const f0 = sampleF0(rec.file, cEnd, end);
   const r = midiToF(midi) / f0;                       // サンプル毎の実測基準で移調
   const preOut = Math.round(ms(preMs) / r);           // 出力での先行発声(拍までの前置き)
   const ovOut = Math.max(1, Math.round(ms(rec.ov) / r)); // 出力でのオーバーラップ
 
-  const head = resample(src, s0, cEnd, r);            // 固定頭(1回だけ)
+  const head = resample(src, s0, cEnd, r);            // 固定頭(子音+母音頭, 1回だけ)
 
-  // 母音ループ域(子音直後の遷移と、多モーラ録音で次音へ移る末尾の両方を少し避ける)
-  const vlen = end - cEnd;
-  let lp0 = cEnd + Math.max(ms(15), Math.floor(vlen * 0.12));
-  let lp1 = cEnd + Math.min(vlen - ms(10), Math.max(ms(80), Math.floor(vlen * 0.6)));
-  if (lp1 - lp0 < ms(45)) { lp0 = cEnd + ms(10); lp1 = end - ms(10); }
-  const L = Math.max(1, lp1 - lp0), xf = Math.max(1, Math.min(ms(25), Math.floor(L * 0.4)));
-
+  // 母音持続は PSOLA でフォルマント保持移調&伸長(ループのうなり無し)
   const total = Math.round(preOut + durSamp + ms(450)); // 次音とのXF分の余裕を含む
-  const j = Math.min(ms(10), head.length, Math.max(0, total - head.length));
   const nRem = Math.max(0, total - head.length);
-  const buf = new Float32Array(head.length + nRem - j);
-  buf.set(head, 0);
+  const sustain = psolaSustain(src, cEnd, end, f0, midiToF(midi), nRem, seed);
 
-  const vibHz = 5.7, vibPeak = useVib ? 0.0163 : 0;   // ±約28セント
-  const vibDelay = 0.22 * SR, vibRamp = 0.18 * SR;
-  let phase = ((seed * 0.37) % 1) * Math.max(1, L - xf);
-  for (let k = 0; k < nRem; k++) {
-    let vd = 0;
-    if (useVib && k > vibDelay) { const g = Math.min(1, (k - vibDelay) / vibRamp); vd = vibPeak * g * Math.sin(2 * Math.PI * vibHz * k / SR + seed); }
-    const rate = r * (1 + vd);
-    let o;
-    if (phase < L - xf) o = interp(src, lp0 + phase);
-    else { const u = (phase - (L - xf)) / xf; o = interp(src, lp0 + phase) * Math.cos(0.5 * Math.PI * u) + interp(src, lp0 + (phase - (L - xf))) * Math.sin(0.5 * Math.PI * u); }
-    const idx = head.length - j + k;                  // 子音→母音の継ぎ目を短くXF
-    if (k < j) buf[idx] = buf[idx] * Math.cos(0.5 * Math.PI * k / j) + o * Math.sin(0.5 * Math.PI * k / j);
-    else buf[idx] = o;
-    phase += rate; if (phase >= L) phase -= (L - xf);
+  // 子音→母音の継ぎ目を短くクロスフェード
+  const j = Math.min(ms(12), head.length, sustain.length);
+  const buf = new Float32Array(head.length + sustain.length - j);
+  buf.set(head, 0);
+  for (let i = 0; i < sustain.length; i++) {
+    const idx = head.length - j + i;
+    if (i < j) buf[idx] = buf[idx] * Math.cos(0.5 * Math.PI * i / j) + sustain[i] * Math.sin(0.5 * Math.PI * i / j);
+    else buf[idx] = sustain[i];
   }
   return {buf, preOut, ovOut};
 }
@@ -287,8 +312,8 @@ for (let i = 0; i < jobs.length; i++) {
   if (job.rest || !job.built) continue;
   const {buf, preOut, ovOut} = job.built;
   const start = Math.max(0, job.beat - preOut);
-  // クロスフェードは最長35msに制限(長い重なりは同母音2録音のコムフィルタ/うなりを生む)
-  const XFMAX = ms(35);
+  // クロスフェード長(前母音を切り詰めたので少し長めでも重なりは短く、うなりを抑えられる)
+  const XFMAX = ms(60);
   const fiLen = Math.max(ms(6), Math.min(ovOut, XFMAX));           // この音の入り(前音とXF)
   // 次の非休符ジョブ(休符が挟まれば無し=リリース)
   let nxt = null;
