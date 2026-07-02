@@ -33,10 +33,12 @@ if (!args.length || args.includes('-h') || args.includes('--help')) {
   環境変数 UTAU_BANK でも指定可。`);
   process.exit(args.length ? 0 : 1);
 }
-let input = null, out = null, bankArg = null;
+let input = null, out = null, bankArg = null, useReverb = true, useVib = true;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '-o') out = args[++i];
   else if (args[i] === '--bank') bankArg = args[++i];
+  else if (args[i] === '--dry') useReverb = false;
+  else if (args[i] === '--no-vib') useVib = false;
   else input = args[i];
 }
 if (!out) out = path.join(path.dirname(input),
@@ -141,64 +143,122 @@ function resample(src, i0, i1, r) {
   for (let k = 0; k < n; k++) out[k] = interp(src, i0 + k * r);
   return out;
 }
-// grainを等パワークロスフェードで敷き詰めて長さNの持続音を作る
-function tile(grain, N, xf) {
-  const out = new Float32Array(N);
-  if (grain.length === 0) return out;
-  xf = Math.min(xf, grain.length >> 1);
-  let pos = 0;                       // 出力書き込み位置
-  let first = true;
-  while (pos < N) {
-    const start = first ? 0 : -xf;   // 2枚目以降は前の末尾にxfだけ重ねる
-    for (let k = 0; k < grain.length && pos + start + k < N; k++) {
-      const wpos = pos + start + k;
-      if (wpos < 0) continue;
-      let g = grain[k];
-      if (!first && k < xf) {        // フェードイン(等パワー)
-        g *= Math.sin(0.5 * Math.PI * k / xf);
-      }
-      if (k > grain.length - xf) {   // フェードアウト(次と重なる分)
-        g *= Math.sin(0.5 * Math.PI * (grain.length - k) / xf);
-      }
-      out[wpos] += g;
-    }
-    pos += grain.length + start;
-    first = false;
-    if (grain.length + start <= 0) break;
-  }
-  return out;
-}
 function envelope(buf, fadeIn, fadeOut) {
   const a = ms(fadeIn), b = ms(fadeOut);
-  for (let i = 0; i < a && i < buf.length; i++) buf[i] *= i / a;
-  for (let i = 0; i < b && i < buf.length; i++) buf[buf.length - 1 - i] *= i / b;
+  for (let i = 0; i < a && i < buf.length; i++) buf[i] *= Math.sin(0.5 * Math.PI * i / a);
+  for (let i = 0; i < b && i < buf.length; i++) buf[buf.length - 1 - i] *= Math.sin(0.5 * Math.PI * i / b);
   return buf;
 }
 
+// YINでサンプルの基準ピッチを推定(調波/subharmonicのオクターブ誤りに強い)
+// 探索範囲を110〜500Hzに絞り、テト単独音(D4〜D#4)を確実に当てる
+function yinF0(src, a, b) {
+  const N = b - a;
+  const minLag = Math.floor(SR / 500), maxLag = Math.min(Math.floor(SR / 110), N >> 1);
+  if (maxLag <= minLag + 2) return 0;
+  const d = new Float32Array(maxLag + 1);
+  for (let tau = minLag; tau <= maxLag; tau++) {
+    let s = 0; const lim = N - tau;
+    for (let i = 0; i < lim; i++) { const dd = src[a + i] - src[a + i + tau]; s += dd * dd; }
+    d[tau] = s;
+  }
+  const cmnd = new Float32Array(maxLag + 1);
+  let run = 0;
+  for (let tau = minLag; tau <= maxLag; tau++) { run += d[tau]; cmnd[tau] = run > 0 ? d[tau] * (tau - minLag + 1) / run : 1; }
+  let tau = -1;
+  for (let t = minLag + 1; t < maxLag; t++) {
+    if (cmnd[t] < 0.15) { while (t + 1 < maxLag && cmnd[t + 1] < cmnd[t]) t++; tau = t; break; }
+  }
+  if (tau < 0) { let mn = Infinity; for (let t = minLag; t <= maxLag; t++) if (cmnd[t] < mn) { mn = cmnd[t]; tau = t; } }
+  if (tau <= minLag) return 0;
+  const y0 = cmnd[tau - 1], y1 = cmnd[tau], y2 = cmnd[tau + 1] || y1;   // 放物線補間(極小)
+  const den = y0 - 2 * y1 + y2;
+  const period = tau + (den !== 0 ? 0.5 * (y0 - y2) / den : 0);
+  return SR / period;
+}
+const f0Cache = new Map();
+function sampleF0(file, s0, cEnd, end) {
+  if (f0Cache.has(file)) return f0Cache.get(file);
+  const src = readWav(file).data;
+  let a = cEnd + ms(25), b = Math.min(end - ms(15), a + ms(220));
+  if (b - a < ms(60)) { a = Math.min(s0 + ms(60), src.length - 1); b = Math.min(src.length, a + ms(240)); }
+  let f = yinF0(src, a, Math.min(b, src.length));
+  if (!(f >= 130 && f <= 520)) f = midiToF(BASE_MIDI);   // 失敗時は既定D#4
+  f0Cache.set(file, f);
+  return f;
+}
+
 /* ---- 1音を合成 ---- */
-function synthNote(kana, midi, durSamp) {
+// 固定子音部 + 母音をクロスフェードループで伸長(ビブラート付き)。移調はサンプル実測ピッチ基準。
+function synthNote(kana, midi, durSamp, seed) {
   const oto = lookup(kana);
   if (!oto) return null;
-  const w = readWav(oto.file);
-  const src = w.data;
-  const r = midiToF(midi) / midiToF(BASE_MIDI);        // ピッチ移調比
+  const src = readWav(oto.file).data;
   const s0 = Math.max(0, ms(oto.offset));
   let cEnd = s0 + ms(oto.cons);
   const sEnd = oto.cutoff >= 0 ? src.length - ms(oto.cutoff) : s0 + ms(-oto.cutoff);
-  const end = Math.min(src.length, Math.max(cEnd + 1, sEnd));
-  cEnd = Math.min(cEnd, end);
+  const end = Math.min(src.length, Math.max(cEnd + ms(40), sEnd));
+  cEnd = Math.min(cEnd, end - ms(40));
+  const f0 = sampleF0(oto.file, s0, cEnd, end);
+  const r = midiToF(midi) / f0;                          // ← サンプル毎の実測基準で移調
 
-  const cons = resample(src, s0, cEnd, r);             // 固定の子音部(移調のみ)
-  // 母音ループ元は母音区間の中央付近(頭の遷移と末尾の減衰を避ける)
-  const vlen = end - cEnd;
-  const m0 = cEnd + Math.floor(vlen * 0.15), m1 = end - Math.floor(vlen * 0.10);
-  const grain = resample(src, Math.max(cEnd, m0), Math.max(m0 + 1, m1), r);
+  const cons = resample(src, s0, cEnd, r);               // 固定の子音部(移調のみ)
+
+  // 母音ループ区間(頭の遷移と末尾の減衰を避けた安定域)
+  let lp0 = cEnd + ms(15), lp1 = end - ms(15);
+  if (lp1 - lp0 < ms(50)) { lp0 = cEnd; lp1 = end; }
+  const L = lp1 - lp0, xf = Math.max(1, Math.min(ms(25), Math.floor(L * 0.4)));
 
   const nRem = Math.max(0, durSamp - cons.length);
-  const sustain = tile(grain, nRem, ms(35));
-  const note = new Float32Array(cons.length + sustain.length);
-  note.set(cons, 0); note.set(sustain, cons.length);
-  return {buf: envelope(note, 6, 30), consLen: cons.length};
+  const sustain = new Float32Array(nRem);
+  const vibHz = 5.7, vibPeak = useVib ? 0.0163 : 0;      // ±約28セント
+  const vibDelay = 0.22 * SR, vibRamp = 0.18 * SR;
+  let phase = ((seed * 0.37) % 1) * Math.max(1, L - xf); // ノート毎に位相をずらす(ループ癖を隠す)
+  for (let k = 0; k < nRem; k++) {
+    let vd = 0;
+    if (useVib && k > vibDelay) {
+      const g = Math.min(1, (k - vibDelay) / vibRamp);
+      vd = vibPeak * g * Math.sin(2 * Math.PI * vibHz * k / SR + seed);
+    }
+    const rate = r * (1 + vd);
+    let out;
+    if (phase < L - xf) out = interp(src, lp0 + phase);
+    else {                                               // 継ぎ目を等パワークロスフェード(クリック防止)
+      const u = (phase - (L - xf)) / xf;
+      out = interp(src, lp0 + phase) * Math.cos(0.5 * Math.PI * u)
+          + interp(src, lp0 + (phase - (L - xf))) * Math.sin(0.5 * Math.PI * u);
+    }
+    sustain[k] = out;
+    phase += rate;
+    if (phase >= L) phase -= (L - xf);
+  }
+
+  // 子音→母音の継ぎ目を短くクロスフェード
+  const j = Math.min(ms(10), cons.length, sustain.length);
+  const note = new Float32Array(cons.length + sustain.length - j);
+  note.set(cons, 0);
+  for (let i = 0; i < sustain.length; i++) {
+    const idx = cons.length - j + i;
+    if (i < j) note[idx] = note[idx] * Math.cos(0.5 * Math.PI * i / j) + sustain[i] * Math.sin(0.5 * Math.PI * i / j);
+    else note[idx] = sustain[i];
+  }
+  return {buf: envelope(note, 8, 45), consLen: Math.max(0, cons.length - j)};
+}
+
+// 軽いシュレーダー・リバーブ(コム4+オールパス2)。ソロ声に少しだけ空気感を足す
+function reverb(buf, wet) {
+  const tmp = new Float32Array(buf.length);
+  for (const [d, g] of [[1557, 0.76], [1617, 0.74], [1491, 0.78], [1422, 0.72]]) {
+    const z = new Float32Array(d); let p = 0;
+    for (let i = 0; i < buf.length; i++) { const y = buf[i] + g * z[p]; z[p] = y; tmp[i] += y; p = p + 1 === d ? 0 : p + 1; }
+  }
+  for (const [d, g] of [[225, 0.5], [556, 0.5]]) {
+    const z = new Float32Array(d); let p = 0;
+    for (let i = 0; i < tmp.length; i++) { const x = tmp[i], y = -g * x + z[p]; z[p] = x + g * y; tmp[i] = y; p = p + 1 === d ? 0 : p + 1; }
+  }
+  const out = new Float32Array(buf.length);
+  for (let i = 0; i < out.length; i++) out[i] = buf[i] * (1 - wet) + tmp[i] * (wet / 4);
+  return out;
 }
 
 /* ---- メイン: 譜面 → ミックス ---- */
@@ -209,19 +269,21 @@ if (song.mode === 'かたり') {
 }
 const st = 60 / song.tempo / 4;                 // 16分音符あたりの秒
 const notes = [...song.notes].sort((a, b) => a.start - b.start);
-const totalSec = notes.reduce((m, n) => Math.max(m, (n.start + n.len) * st), 0) + 0.6;
-const master = new Float32Array(Math.ceil(totalSec * SR) + SR);
+const totalSec = notes.reduce((m, n) => Math.max(m, (n.start + n.len) * st), 0) + 0.8;
+let master = new Float32Array(Math.ceil(totalSec * SR) + SR);
 
-let prevVowel = 'a', placed = 0, missing = new Set();
+let prevVowel = 'a', placed = 0, idx = 0, missing = new Set();
 for (const n of notes) {
+  idx++;
   let ph = Utau.parseMora(n.lyric);
-  if (ph.rest) { prevVowel = prevVowel; continue; }
+  if (ph.rest) continue;
   let kana = n.lyric;
   if (ph.ext) kana = VOWEL_KANA[prevVowel] || 'あ';       // ー = 直前の母音を伸ばす
-  let res = synthNote(kana, n.midi, Math.round(n.len * st * SR));
+  const durSamp = Math.round(n.len * st * SR);
+  let res = synthNote(kana, n.midi, durSamp, idx);
   if (!res) {                                             // 無ければ母音のみで代替
     const vk = VOWEL_KANA[ph.v] || 'あ';
-    res = synthNote(vk, n.midi, Math.round(n.len * st * SR));
+    res = synthNote(vk, n.midi, durSamp, idx);
     if (res) missing.add(`${n.lyric}→${vk}`);
   }
   if (!res) { missing.add(`${n.lyric}(欠)`); continue; }
@@ -234,13 +296,15 @@ for (const n of notes) {
   placed++;
 }
 
-/* ---- 正規化して書き出し ---- */
+/* ---- 仕上げ: リバーブ → 正規化 → 書き出し ---- */
+if (useReverb) master = reverb(master, 0.18);
 let peak = 0;
 for (let i = 0; i < master.length; i++) { const a = Math.abs(master[i]); if (a > peak) peak = a; }
 if (peak > 0) { const s = 0.89 / peak; for (let i = 0; i < master.length; i++) master[i] *= s; }
 fs.writeFileSync(out, Buffer.from(Utau.toWav(master)));
 
-console.log(`🎤×重音テト / ♩=${song.tempo} / ${placed}音 / ${totalSec.toFixed(1)}秒`);
+console.log(`🎤×重音テト / ♩=${song.tempo} / ${placed}音 / ${totalSec.toFixed(1)}秒`
+  + ` / ビブ:${useVib ? '有' : '無'} / 残響:${useReverb ? '有' : '無'}`);
 console.log(`   音源: ${BANK.replace(os.homedir(), '~')}`);
 console.log(`   → ${out}`);
 if (missing.size) console.log(`   ※ 代替/欠落: ${[...missing].join(', ')}`);
