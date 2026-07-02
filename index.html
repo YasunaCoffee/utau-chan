@@ -88,7 +88,12 @@
       <b>🎛 調教記号</b>(音符のうしろに付ける):
       <code>&lt;</code>しゃくり <code>&gt;</code>フォール <code>~</code>ビブラート強め <code>_</code>ビブラート無し
       <code>*</code>こぶし <code>!</code>アクセント <code>?</code>よわく<br>
-      例: <code>そ4:ら:8&lt;~</code> = ソを8分のばし、しゃくって入ってビブラート強め
+      例: <code>そ4:ら:8&lt;~</code> = ソを8分のばし、しゃくって入ってビブラート強め<br>
+      <b>🌙 かたりモード(ポエトリーリーディング)</b> — <code>@mode かたり</code> と書くと、
+      あとは<b>ふつうの詩をひらがな/カタカナでそのまま書くだけ</b>。抑揚は自動。
+      <code>、</code>小さな間 <code>。!?</code>大きな間(<code>?</code>は語尾上げ) 空行=もっと大きな間。
+      <code>@tempo</code> は1分あたりのモーラ数(省略=320)。
+      <code>@style ささやき</code>で囁き系、<code>ロボまる</code>+<code>べたうち</code>で機械よみ
     </div>
   </div>
 </main>
@@ -151,7 +156,23 @@ const EXAMPLES = {
 @style べたうち
 
 ど4:わ ど4:た み4:し そ4:は | ど5:ろ:2 し4:ぼ:2 ら4:っ:2 そ4:と:2 ・:4
-ど4:う み4:た そ4:を ら4:う | そ4:た:4 み4:い:4 れ4:ま:4 ど4:す:8`
+ど4:う み4:た そ4:を ら4:う | そ4:た:4 み4:い:4 れ4:ま:4 ど4:す:8`,
+  '🌙 よるのポエトリー(かたり)': `# よるのポエトリー(オリジナル / @mode かたり のデモ)
+@mode かたり
+@voice うたこ
+@style ささやき
+
+よるのまちを ひとりで あるいていた
+ポケットのなかで ゆびさきだけが さむかった
+
+かえりみち、
+じどうはんばいきの ひかりが
+ちいさな つきみたいに みえたんだ
+
+ねえ、きょうのことは
+ぜんぶ わすれてもいいけど。
+
+このひかりだけは、おぼえていたいな。`
 };
 
 /* ---------- 再生 ---------- */
@@ -179,9 +200,9 @@ function play(){
   stop();
   const song = parseScore();
   if (!song) return;
-  if (!song.notes.length){ toast('音符がないよ!サンプルを押してみてね'); return; }
   currentVoice = song.voice;
   const {samples, duration, timeline} = Utau.render(song);
+  if (!timeline.length){ toast('うたう中身がないよ!サンプルを押してみてね'); return; }
   const ctx = getCtx();
   const ab = ctx.createBuffer(1, samples.length, Utau.SR);
   ab.copyToChannel(samples, 0);
@@ -216,8 +237,9 @@ function stop(){
 /* ---------- WAV / 共有 ---------- */
 function exportWav(){
   const song = parseScore();
-  if (!song || !song.notes.length){ toast('音符がないよ!'); return; }
-  const {samples} = Utau.render(song);
+  if (!song) return;
+  const {samples, timeline} = Utau.render(song);
+  if (!timeline.length){ toast('うたう中身がないよ!'); return; }
   const url = URL.createObjectURL(new Blob([Utau.toWav(samples)], {type:'audio/wav'}));
   const a = document.createElement('a');
   a.href = url; a.download = 'utaukun-song.wav';

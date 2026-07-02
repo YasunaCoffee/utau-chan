@@ -21,10 +21,12 @@ const HELP = `
 
 譜面のかきかた(うたテキスト形式):
   # コメント
-  @tempo 110              テンポ
+  @mode うた              うた(デフォルト) / かたり(ポエトリーリーディング)
+  @tempo 110              テンポ(かたりモードでは1分あたりのモーラ数。省略=320)
   @voice うたこ            うたこ / ちびすけ / ロボまる / おじさま
   @style ふつう            べたうち / ふつう / こぶし / ささやき / げんき
 
+  ── うたモード ──
   ど4:き ど4:ら そ4:き:8 ・:4 …
 
   音符 = 高さ:歌詞[:長さ][調教記号]
@@ -33,6 +35,11 @@ const HELP = `
     長さ   16分音符いくつぶんか。省略=4(4分音符)
     休符   ・:4
   調教記号: <しゃくり >フォール ~ビブ強 _ビブ無 *こぶし !アクセント ?よわく
+
+  ── かたりモード ──
+  ふつうの詩をひらがな/カタカナでそのまま書く。抑揚は自動でつく。
+  「、」小さな間 「。!?」大きな間(「?」は語尾上げ) 空行=もっと大きな間
+  @style ささやき で囁き系、@voice ロボまる + @style べたうち で機械よみ
 `;
 
 const args = process.argv.slice(2);
@@ -61,7 +68,7 @@ try {
   process.exit(1);
 }
 const t = Date.now();
-const {samples, duration} = Utau.render(song);
+const {samples, duration, timeline} = Utau.render(song);
 fs.writeFileSync(out, Buffer.from(Utau.toWav(samples)));
-console.log(`🎤 ${song.voice} / 調教:${song.style} / ♩=${song.tempo} / ${song.notes.length}音 / ${duration.toFixed(1)}秒`);
+console.log(`🎤 ${song.mode} / ${song.voice} / 調教:${song.style} / ♩=${song.tempo} / ${timeline.length}音 / ${duration.toFixed(1)}秒`);
 console.log(`   → ${out} (${(Date.now() - t) / 1000}秒でレンダリング)`);

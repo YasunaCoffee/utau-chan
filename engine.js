@@ -153,24 +153,25 @@ function parsePitch(p) {
   return 12 * (+m[3] + 1) + pc + acc;
 }
 
+const MODE_ALIAS = {song: 'うた', talk: 'かたり', poetry: 'かたり', 'ポエトリー': 'かたり'};
+
 function parse(text) {
-  const song = {tempo: 110, voice: 'うたこ', style: 'ふつう', notes: []};
+  const song = {mode: 'うた', tempo: 110, voice: 'うたこ', style: 'ふつう', notes: [], lines: []};
   const errors = [];
-  let pos = 0;
-  const lines = String(text).split('\n');
-  lines.forEach((line, li) => {
+  let pos = 0, tempoSet = false;
+  const body = [];                       // ディレクティブ以外の行(空行も間として残す)
+  String(text).split('\n').forEach((raw, li) => {
     // コメントは行頭か空白のあとの # のみ (F#4 の # は音名の一部)
-    line = line.replace(/(^|\s)[#＃].*$/, '$1').replace(/\/\/.*$/, '')
-               .replace(/[　\t]/g, ' ').trim();
-    if (!line) return;
+    const line = raw.replace(/(^|\s)[#＃].*$/, '$1').replace(/\/\/.*$/, '')
+                    .replace(/[　\t]/g, ' ').trim();
     if (line[0] === '@' || line[0] === '＠') {
       const dm = line.slice(1).match(/^(\S+)\s+(\S+)/);
       if (!dm) { errors.push(`${li + 1}行目: "${line}" がよめません`); return; }
       const [, key, val] = dm;
-      if (/^(tempo|てんぽ|テンポ)$/i.test(key)) {
+      if (/^(tempo|てんぽ|テンポ|はやさ|speed)$/i.test(key)) {
         const t = parseInt(val, 10);
-        if (t >= 40 && t <= 300) song.tempo = t;
-        else errors.push(`${li + 1}行目: テンポは40〜300で`);
+        if (t >= 40 && t <= 600) { song.tempo = t; tempoSet = true; }
+        else errors.push(`${li + 1}行目: テンポは40〜600で`);
       } else if (/^(voice|こえ|声)$/i.test(key)) {
         const v = VOICE_ALIAS[val.toLowerCase()] || val;
         if (VOICES[v]) song.voice = v;
@@ -179,11 +180,34 @@ function parse(text) {
         const s = STYLE_ALIAS[val.toLowerCase()] || val;
         if (STYLES[s]) song.style = s;
         else errors.push(`${li + 1}行目: スタイル「${val}」はないよ (${Object.keys(STYLES).join('/')})`);
+      } else if (/^(mode|もーど|モード)$/i.test(key)) {
+        const m = MODE_ALIAS[val.toLowerCase()] || val;
+        if (m === 'うた' || m === 'かたり') song.mode = m;
+        else errors.push(`${li + 1}行目: モードは「うた」か「かたり」だよ`);
       } else {
         errors.push(`${li + 1}行目: @${key} はしらないなあ`);
       }
       return;
     }
+    body.push({line, li});
+  });
+
+  if (song.mode === 'かたり') {
+    // かたり(ポエトリーリーディング)モード: 本文はふつうの詩のテキスト
+    if (!tempoSet) song.tempo = 320;     // かたりのテンポは「1分あたりのモーラ数」
+    for (const {line} of body) song.lines.push(line);
+    while (song.lines.length && !song.lines[0]) song.lines.shift();
+    while (song.lines.length && !song.lines[song.lines.length - 1]) song.lines.pop();
+    if (errors.length) {
+      const e = new Error(errors.join('\n'));
+      e.utauErrors = errors;
+      throw e;
+    }
+    return song;
+  }
+
+  for (const {line, li} of body) {
+    if (!line) continue;
     for (let token of line.split(/\s+/)) {
       if (!token || token === '|' || token === '｜') continue;
       let mods = '';
@@ -203,7 +227,7 @@ function parse(text) {
       song.notes.push({start: pos, len, midi, lyric, mods});
       pos += len;
     }
-  });
+  }
   if (errors.length) {
     const e = new Error(errors.join('\n'));
     e.utauErrors = errors;
@@ -276,8 +300,59 @@ function addConsonant(buf, c, t0, f0) {
   return t0;
 }
 
+/* ============ 5a. かたりモード: 詩のテキスト → 話し言葉の抑揚 ============ */
+function buildSpeechEvents(song) {
+  const voice = VOICES[song.voice], style = STYLES[song.style];
+  const moraDur = 60 / song.tempo;             // @tempo = 1分あたりのモーラ数
+  const base = 57;                             // 話し声の基準(A3。声ごとのpitchは後段で加算)
+  const flat = song.style === 'べたうち';      // べたうち = 抑揚ゼロの機械よみ
+  const events = [];
+  let t = 0.1;
+  for (const line of song.lines) {
+    if (!line) { t += 0.5; continue; }         // 空行 = おおきな間
+    const phrases = line.match(/[^、。，．,.!?！？…‥\s]+[、。，．,.!?！？…‥]*/g) || [];
+    for (const chunk of phrases) {
+      const pm = chunk.match(/[、。，．,.!?！？…‥]+$/);
+      const punct = pm ? pm[0] : '';
+      const moras = splitMoras(chunk);
+      const n = moras.length;
+      if (!n) { if (punct) t += 0.4; continue; }
+      const question = /[?？]/.test(punct);
+      let acc = 0, prevMidi = null, prevVowel = 'a';
+      for (let i = 0; i < n; i++) {
+        const ph0 = parseMora(moras[i]);
+        if (ph0.rest) { t += moraDur * 0.6; prevMidi = null; continue; }  // っ = つまり
+        const ph = ph0.ext ? {c: '', v: prevVowel, pal: null} : ph0;
+        // フレーズ頭は高く、おわりに向かって自然に下降(+ゆるいアクセントの揺れ)
+        const decl = 1.5 - 4.0 * (n > 1 ? i / (n - 1) : 0.5);
+        if (i > 0) acc = Math.max(-1.5, Math.min(1.5, acc + Math.random() * 1.4 - 0.7));
+        const jitter = (Math.random() - 0.5) * 0.4;
+        const midi = base + (flat ? 0 : decl + acc + jitter);
+        const isLast = i === n - 1;
+        let len = moraDur * (0.9 + Math.random() * 0.2) * (ph0.ext ? 1.3 : 1);
+        let fall = 0;
+        if (isLast) {                          // 文末: のばして落とす。「?」なら上げる
+          len *= question ? 1.5 : 1.6;
+          fall = flat ? 0 : (question ? -3 : 2.2);
+        }
+        events.push({
+          t0: t, t1: t + len, midi, lyric: moras[i], c: ph.c, v: ph.v, pal: ph.pal,
+          glideFrom: prevMidi, scoopSemi: 0, fallSemi: fall, kobushi: false,
+          vibCents: 0, vol: style.volume * (isLast ? 0.85 : 1), speech: true
+        });
+        t += len; prevMidi = midi; prevVowel = ph.v;
+      }
+      t += /[。．.!?！？…‥]/.test(punct) ? 0.55 : punct ? 0.3 : 0.15;
+    }
+    t += 0.35;                                 // 行のおわりの間
+  }
+  const duration = events.length ? events[events.length - 1].t1 : 0;
+  return {events, duration, voice, style};
+}
+
 /* ============ 5. 譜面 → イベント列(調教の決定) ============ */
 function buildEvents(song) {
+  if (song.mode === 'かたり') return buildSpeechEvents(song);
   const st = 60 / song.tempo / 4;
   const voice = VOICES[song.voice], style = STYLES[song.style];
   const notes = [...song.notes].sort((a, b) => a.start - b.start);
@@ -328,11 +403,13 @@ function renderEvent(buf, ev, voice, style) {
   const palFrom = ev.pal ? VOWELS[ev.pal] : null;
   const filters = vw.f.map((f, i) =>
     new Biquad((palFrom ? palFrom.f[i] : f) * shift, 9));
-  const glideF = ev.glideFrom !== null && !c ? midiToF(ev.glideFrom + voice.pitch) : 0;
+  // かたり(speech)は子音をまたいでも音程をつなぐ(話し言葉の連続感)
+  const glideF = ev.glideFrom != null && (!c || ev.speech)
+    ? midiToF(ev.glideFrom + voice.pitch) : 0;
   const vibRate = voice.vibRate || 5.5;
   const driftAmp = style.drift, driftPhase = Math.random() * 6.28;
   const wave = voice.wave === 'square' ? oscSquare : oscSaw;
-  const atk = 0.025 * SR, rel = 0.06 * SR;
+  const atk = (ev.speech ? 0.015 : 0.025) * SR, rel = (ev.speech ? 0.045 : 0.06) * SR;
   const i0 = Math.max(0, Math.floor(vStart * SR));
   const i1 = Math.min(buf.length, Math.floor(ev.t1 * SR));
   let phase = 0;
@@ -344,9 +421,10 @@ function renderEvent(buf, ev, voice, style) {
     if (glideF && tn < 0.06) f = glideF + (f0target - glideF) * (tn / 0.06);
     let cents = 0;
     if (ev.scoopSemi > 0 && tn < 0.13) cents -= ev.scoopSemi * 100 * (1 - tn / 0.13);
-    if (ev.fallSemi > 0) {
+    if (ev.fallSemi) {                         // 正=フォール / 負=語尾上げ(疑問)
+      const w = ev.speech ? 0.18 : 0.13;
       const tf = ev.t1 - t;
-      if (tf < 0.13) cents -= ev.fallSemi * 100 * (1 - tf / 0.13);
+      if (tf < w) cents -= ev.fallSemi * 100 * (1 - tf / w);
     }
     if (ev.vibCents > 0 && tn > style.vibDelay) {
       const r = Math.min(1, (tn - style.vibDelay) / 0.35);
