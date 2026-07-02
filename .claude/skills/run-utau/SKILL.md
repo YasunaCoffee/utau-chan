@@ -1,9 +1,9 @@
 ---
 name: run-utau
-description: うたうくん(このリポジトリ)を起動して歌わせる。「うたを鳴らして」「うたわせて」「実行して」「WAVにして」「ブラウザで開いて」「run-utau」などと言われたとき、または譜面(.uta)を書いて音を確認したいときに使う。CLI(node sing.js)でWAV生成、ブラウザ(index.html)で口パク再生の両方に対応。
+description: うたうちゃん(このリポジトリ)を起動して歌わせる。「うたを鳴らして」「うたわせて」「実行して」「WAVにして」「ブラウザで開いて」「run-utau」などと言われたとき、または譜面(.uta)を書いて音を確認したいときに使う。CLI(node sing.js)でWAV生成、ブラウザ(index.html)で口パク再生の両方に対応。
 ---
 
-# run-utau — うたうくんの起動ランブック
+# run-utau — うたうちゃんの起動ランブック
 
 このリポジトリは、テキスト譜面「うたテキスト(.uta)」を歌声WAVに合成する、依存ライブラリ不要のちいさな歌声合成器。声は録音を使わずフォルマント合成でその場生成する。起動方法は2つ:
 
@@ -63,17 +63,19 @@ python3 -m http.server 8000   # → http://localhost:8000/index.html
 
 ## 実録音サンプルで歌わせる(重音テト等のUTAU音源)
 
-`sing.js` は録音を使わないフォルマント合成。対して `singteto.js` は、**UTAU音源(録音WAV+oto.ini)を切り貼りして**同じうたテキスト譜面を歌わせるミニUTAUリサンプラー(単独音/CV対応)。
+`sing.js` は録音を使わないフォルマント合成。対して `singteto.js` は、**UTAU音源(録音WAV+oto.ini)を切り貼りして**同じうたテキスト譜面を実録音の声で歌わせるミニUTAUリサンプラー。
 
 ```bash
 node singteto.js songs/kirakira.uta                 # → songs/kirakira.teto.wav
-node singteto.js songs/kirakira.uta --bank "<単独音フォルダ>"
-UTAU_BANK="<単独音フォルダ>" node singteto.js songs/kirakira.uta
+node singteto.js songs/kirakira.uta --bank "<音源フォルダ>"
+UTAU_BANK="<音源フォルダ>" node singteto.js songs/kirakira.uta
+node singteto.js songs/kirakira.uta --no-vib --dry  # ビブラート/残響オフ
 ```
 
-- 音源フォルダ = `oto.ini` のある単独音フォルダ(例: `重音テト単独音`)。未指定なら `~/dev/teto-voicebank/**/重音テト単独音` を自動探索。
-- 基準ピッチは実測 D#4(MIDI63)。そこからリサンプリングで移調するので、離れた音では声色(フォルマント)が上下する。ビブラート・連続音(VCV)は未対応(単独音のみ)。
-- **⚠️ 音源ファイルは同梱・コミット禁止**。重音テト音源(小山乃舞世)は再配布不可のため、各自ダウンロードしてリポジトリ外に置く。`singteto.js` はコードのみ(音源は含まない)。
+- **連続音(VCV)/単独音(CV)を自動判別**。音源フォルダ = `oto.ini` のあるフォルダ。未指定なら `~/dev/teto-voicebank/**/`(`重音テト連続音`→`重音テト単独音`の順)を自動探索。
+- 移調はサンプル毎の実測ピッチ(YIN)基準。母音は **TD-PSOLA でフォルマント保持**(チップマンク感なし)、長音にビブラート、つなぎは等パワークロスフェード、仕上げに軽い残響。
+- 品質メトリクスは `node tools/analyze-teto.js 歌.wav 譜面.uta`、改善履歴は `docs/teto-changelog.md`。
+- **⚠️ 音源ファイルは同梱・コミット禁止**。重音テト音源(小山乃舞世)は再配布不可のため、各自ダウンロードしてリポジトリ外に置く。`singteto.js` はコードのみ(音源も生成WAVも含まない)。
 
 ## 新しい譜面を書いて鳴らす(要点)
 

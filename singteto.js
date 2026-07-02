@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * うたうくん × 重音テト — うたテキスト譜面を「実録音サンプル(UTAU音源)」で歌わせる
+ * うたうちゃん × 重音テト — うたテキスト譜面を「実録音サンプル(UTAU音源)」で歌わせる
  *
  *   node singteto.js songs/kirakira.uta            → songs/kirakira.teto.wav
  *   node singteto.js songs/kirakira.uta -o out.wav
@@ -29,7 +29,7 @@ const midiToF = m => 440 * Math.pow(2, (m - 69) / 12);
 /* ---- 引数 ---- */
 const args = process.argv.slice(2);
 if (!args.length || args.includes('-h') || args.includes('--help')) {
-  console.log(`うたうくん × 重音テト — 譜面を実録音サンプルで歌わせる
+  console.log(`うたうちゃん × 重音テト — 譜面を実録音サンプルで歌わせる
 つかいかた:
   node singteto.js <譜面.uta> [-o 出力.wav] [--bank <音源フォルダ>] [--no-vib] [--dry]
   連続音(VCV)/単独音(CV)は自動判別。音源は別途DL(再配布禁止)。既定の探索先:

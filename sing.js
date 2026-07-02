@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * うたうくん CLI — うたテキスト → WAV
+ * うたうちゃん CLI — うたテキスト → WAV
  *
  *   node sing.js songs/kirakira.uta            → songs/kirakira.wav
  *   node sing.js songs/kirakira.uta -o out.wav
@@ -13,7 +13,7 @@ const path = require('path');
 const Utau = require('./engine.js');
 
 const HELP = `
-うたうくん CLI — テキスト譜面をうたごえWAVにします
+うたうちゃん CLI — テキスト譜面をうたごえWAVにします
 
 つかいかた:
   node sing.js <譜面ファイル.uta> [-o 出力.wav]
