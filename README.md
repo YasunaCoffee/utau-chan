@@ -22,8 +22,8 @@ AIが譜面を書き、調教まで付けてくれます。返ってきたテキ
 ## 自分で動かす
 
 ```bash
-git clone https://github.com/YasunaCoffee/utau.git
-cd utau
+git clone https://github.com/YasunaCoffee/utau-chan.git
+cd utau-chan
 node sing.js songs/kirakira.uta          # フォルマント合成 → songs/kirakira.wav
 node singteto.js songs/kirakira.uta      # 重音テトの実録音で → songs/kirakira.teto.wav（音源は別途DL）
 ```
