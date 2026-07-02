@@ -3,719 +3,293 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>うたうくん 🎤 — ブラウザで歌ってくれる小さなうた合成器</title>
-<meta name="description" content="おんぷをならべて歌詞を流し込むと、うたうくんがボカロ風の声で歌ってくれるブラウザおもちゃ。インストール不要、WAV書き出し・共有リンク付き。">
+<title>うたうくん 🎤 — AIが書いた譜面テキストを歌うプレイヤー</title>
+<meta name="description" content="テキストで書いた譜面(調教記号つき)をボカロ風の合成音声で歌うプレイヤー。AIに譜面を書かせて貼るだけ。インストール不要・WAV保存・共有リンク対応。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎤</text></svg>">
 <style>
-  :root{
-    --bg:#fdf6ec; --card:#ffffff; --ink:#4a3f35; --accent:#ff7aa2;
-    --accent2:#6ec6ff; --line:#e8ddcf; --grid:#f4ece0;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  body{
-    margin:0; background:var(--bg); color:var(--ink);
-    font-family:"Hiragino Maru Gothic ProN","BIZ UDGothic","Yu Gothic UI","Meiryo",sans-serif;
-  }
-  header{
-    padding:14px 20px 6px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
-  }
+  :root{ --bg:#fdf6ec; --card:#fff; --ink:#4a3f35; --accent:#ff7aa2; --accent2:#6ec6ff; --line:#e8ddcf; }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Hiragino Maru Gothic ProN","BIZ UDGothic","Yu Gothic UI","Meiryo",sans-serif; }
+  header{padding:16px 20px 4px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
   header h1{margin:0; font-size:26px; letter-spacing:2px;}
   header .tagline{font-size:13px; opacity:.75;}
-  #toolbar{
-    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    padding:10px 20px; position:sticky; top:0; z-index:20;
-    background:linear-gradient(var(--bg) 85%, transparent);
-  }
-  button, select{
-    font-family:inherit; font-size:14px; color:var(--ink);
-    background:var(--card); border:2px solid var(--line); border-radius:12px;
-    padding:8px 14px; cursor:pointer; box-shadow:0 2px 0 var(--line);
-  }
+  main{display:flex; gap:16px; padding:12px 20px 30px; align-items:flex-start; flex-wrap:wrap;}
+  .card{background:var(--card); border:2px solid var(--line); border-radius:16px; padding:14px;}
+  #left{width:264px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
+  #faceCanvas{display:block; margin:0 auto;}
+  #speech{min-height:30px; text-align:center; font-size:16px; color:#8a7b6c; margin-top:2px;}
+  #right{flex:1; min-width:340px; display:flex; flex-direction:column; gap:12px;}
+  #score{ width:100%; height:280px; font-family:ui-monospace,Consolas,monospace; font-size:14px; line-height:1.7;
+    border:2px solid var(--line); border-radius:12px; padding:10px; resize:vertical; color:var(--ink); background:#fffdf8;}
+  #buttons{display:flex; gap:8px; flex-wrap:wrap;}
+  button{ font-family:inherit; font-size:14px; color:var(--ink); background:var(--card);
+    border:2px solid var(--line); border-radius:12px; padding:9px 16px; cursor:pointer; box-shadow:0 2px 0 var(--line);}
   button:active{transform:translateY(2px); box-shadow:none;}
   button.primary{background:var(--accent); border-color:#e05f87; color:#fff; box-shadow:0 2px 0 #e05f87; font-weight:bold;}
-  button.blue{background:var(--accent2); border-color:#4da3dd; color:#fff; box-shadow:0 2px 0 #4da3dd;}
-  #tempoWrap{display:flex; align-items:center; gap:6px; font-size:13px; background:var(--card); border:2px solid var(--line); border-radius:12px; padding:4px 10px;}
-  #tempo{width:110px; accent-color:var(--accent);}
-  main{display:flex; gap:16px; padding:4px 20px 30px; align-items:flex-start; flex-wrap:wrap;}
-  #sidePanel{
-    width:250px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;
-  }
-  .card{background:var(--card); border:2px solid var(--line); border-radius:16px; padding:12px;}
-  #faceCanvas{display:block; margin:0 auto; }
-  #speech{
-    min-height:20px; text-align:center; font-size:13px; color:#8a7b6c; margin-top:4px;
-  }
-  #lyricsBox{
-    width:100%; height:84px; font-family:inherit; font-size:14px; border:2px solid var(--line);
-    border-radius:10px; padding:8px; resize:vertical; color:var(--ink);
-  }
-  .hint{font-size:12px; line-height:1.7; color:#8a7b6c; margin:6px 0 0;}
+  .chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .chips button{padding:5px 10px; font-size:12px; border-radius:999px;}
+  #err{color:#c62828; font-size:13px; white-space:pre-wrap; margin-top:6px; min-height:0;}
+  .hint{font-size:12px; line-height:1.9; color:#8a7b6c;}
+  .hint code{background:#f6efe3; border-radius:4px; padding:1px 5px; font-size:11px;}
   .hint b{color:var(--ink);}
-  #rollWrap{flex:1; min-width:320px; display:flex; background:var(--card); border:2px solid var(--line); border-radius:16px; overflow:hidden;}
-  #keysCanvas{display:block; flex-shrink:0; border-right:2px solid var(--line); cursor:pointer;}
-  #rollScroll{overflow-x:auto; overflow-y:hidden; flex:1;}
-  #rollContent{position:relative;}
-  #gridCanvas{display:block; cursor:crosshair;}
-  #playhead{
-    position:absolute; top:0; width:2px; background:#ff5252; pointer-events:none; display:none;
-  }
-  #toast{
-    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(80px);
+  #toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(80px);
     background:var(--ink); color:#fff; padding:10px 22px; border-radius:999px; font-size:14px;
-    transition:transform .25s; z-index:99; pointer-events:none;
-  }
+    transition:transform .25s; z-index:99; pointer-events:none;}
   #toast.show{transform:translateX(-50%) translateY(0);}
   footer{padding:0 20px 40px; font-size:12px; color:#a08f7d; line-height:1.8;}
-  footer a{color:var(--accent2);}
 </style>
 </head>
 <body>
 
 <header>
   <h1>🎤 うたうくん</h1>
-  <span class="tagline">おんぷをならべて、うたわせてあそぼう！ — ブラウザで動くちいさなうた合成器</span>
+  <span class="tagline">譜面テキストを貼ると歌ってくれるよ — AIに作曲・調教をたのんでね</span>
 </header>
 
-<div id="toolbar">
-  <button id="btnPlay" class="primary">▶ うたう</button>
-  <button id="btnStop">■ とめる</button>
-  <button id="btnRandom" class="blue">🎲 おまかせ作曲</button>
-  <select id="presetSel" title="プリセット曲">
-    <option value="">📖 プリセット曲…</option>
-  </select>
-  <select id="voiceSel" title="こえ"></select>
-  <div id="tempoWrap">🥁 <input type="range" id="tempo" min="60" max="200" value="110"><span id="tempoVal">110</span></div>
-  <button id="btnClear">🗑 ぜんぶけす</button>
-  <button id="btnWav">⬇ WAV保存</button>
-  <button id="btnShare">🔗 共有リンク</button>
-</div>
-
 <main>
-  <div id="sidePanel">
+  <div id="left">
     <div class="card">
-      <canvas id="faceCanvas" width="220" height="190"></canvas>
+      <canvas id="faceCanvas" width="230" height="195"></canvas>
       <div id="speech">…</div>
     </div>
-    <div class="card">
-      <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">📝 歌詞（ひらがな / カタカナ）</div>
-      <textarea id="lyricsBox" placeholder="ここにかしをかいてね&#10;れい：きらきらほしが よぞらにひかる"></textarea>
-      <button id="btnFlow" style="width:100%; margin-top:8px;">🎶 おんぷに歌詞を流しこむ</button>
-    </div>
     <div class="card hint">
-      <b>あそびかた</b><br>
-      ・マス目をクリック → おんぷを置く<br>
-      ・ドラッグ → 移動 ／ 右はし → 長さ変更<br>
-      ・ダブルクリック → その音の歌詞を変える<br>
-      ・右クリック → けす<br>
-      ・スペースキー → うたう / とめる<br>
-      ・「ー」でのばし、「っ」でおやすみ
+      <b>🤖 あそびかた(AI編)</b><br>
+      ChatGPTやClaudeにこのページの「かきかた」を見せて、<br>
+      「<b>ねこのテーマで1曲、こぶし多めで調教して</b>」<br>
+      のようにたのむ → 返ってきた譜面を貼る → ▶<br><br>
+      <b>🧑 あそびかた(人間編)</b><br>
+      下のサンプルを押して▶をおすだけ。<br>
+      共有リンクで曲をともだちに送れるよ。
     </div>
   </div>
 
-  <div id="rollWrap">
-    <canvas id="keysCanvas"></canvas>
-    <div id="rollScroll">
-      <div id="rollContent">
-        <canvas id="gridCanvas"></canvas>
-        <div id="playhead"></div>
+  <div id="right">
+    <div class="card">
+      <div class="chips" id="examples" style="margin-bottom:8px;"></div>
+      <textarea id="score" spellcheck="false"></textarea>
+      <div id="err"></div>
+      <div id="buttons" style="margin-top:10px;">
+        <button id="btnPlay" class="primary">▶ うたう</button>
+        <button id="btnStop">■ とめる</button>
+        <button id="btnWav">⬇ WAV保存</button>
+        <button id="btnShare">🔗 共有リンク</button>
       </div>
+    </div>
+    <div class="card hint" id="howto">
+      <b>📝 譜面のかきかた(うたテキスト形式)</b><br>
+      <code>@tempo 110</code> テンポ ／
+      <code>@voice うたこ</code> うたこ・ちびすけ・ロボまる・おじさま ／
+      <code>@style ふつう</code> べたうち・ふつう・こぶし・ささやき・げんき<br>
+      音符は <code>高さ:歌詞:長さ</code> を空白でならべる。例: <code>ど4:き ど4:ら そ4:き:8 ・:4</code><br>
+      ・高さ … <code>ど れ み ふぁ そ ら し</code>+オクターブ(<code>ど4</code>=C4)。<code>#</code>/<code>♭</code>や<code>C4</code>式もOK<br>
+      ・歌詞 … かな1音。<code>ー</code>のばす、<code>っ</code>やすむ、<code>にゃ</code>など拗音OK<br>
+      ・長さ … 16分音符いくつぶんか(省略=4 → 4分音符)。休符は <code>・:4</code>。<code>|</code> は小節線(かざり)<br>
+      <b>🎛 調教記号</b>(音符のうしろに付ける):
+      <code>&lt;</code>しゃくり <code>&gt;</code>フォール <code>~</code>ビブラート強め <code>_</code>ビブラート無し
+      <code>*</code>こぶし <code>!</code>アクセント <code>?</code>よわく<br>
+      例: <code>そ4:ら:8&lt;~</code> = ソを8分のばし、しゃくって入ってビブラート強め
     </div>
   </div>
 </main>
 
 <footer>
-  うたうくんの声は、Web Audio API のフォルマント合成でその場で作られています（音源データは使っていません）。<br>
-  収録曲のメロディはパブリックドメインの童謡、歌詞はこのプロジェクトのオリジナルです。あそんだ曲は「共有リンク」でともだちに送れます。
+  声は録音データを使わず、Web Audio(フォルマント合成)でその場で生成しています。
+  コマンドラインでも <code>node sing.js 譜面.uta</code> でWAVにできます。詳しくはリポジトリのREADMEへ。
 </footer>
 
 <div id="toast"></div>
 
+<script src="engine.js"></script>
 <script>
 "use strict";
-/* =========================================================
- * うたうくん — tiny browser singing synthesizer
- * 1. かな → 音素          (kana tables)
- * 2. 音素 → 音            (Web Audio formant synthesis)
- * 3. ピアノロール UI       (canvas editor)
- * 4. かお                 (singing face)
- * 5. プリセット / 🎲 / 共有
- * ========================================================= */
 
-/* ---------- 1. kana → phoneme ---------- */
-const KMAP = {};
-(function(){
-  const rows = [
-    ['あいうえお',''],['かきくけこ','k'],['がぎぐげご','g'],
-    ['さしすせそ','s'],['ざじずぜぞ','z'],['たちつてと','t'],
-    ['だぢづでど','d'],['なにぬねの','n'],['はひふへほ','h'],
-    ['ばびぶべぼ','b'],['ぱぴぷぺぽ','p'],['まみむめも','m'],
-    ['らりるれろ','r']
-  ];
-  const V = 'aiueo';
-  for (const [kana, c] of rows)
-    for (let i = 0; i < 5; i++) KMAP[kana[i]] = [c, V[i]];
-  Object.assign(KMAP, {
-    'し':['sh','i'],'じ':['j','i'],'ち':['ch','i'],'ぢ':['j','i'],
-    'つ':['ts','u'],'づ':['z','u'],'ふ':['f','u'],
-    'や':['y','a'],'ゆ':['y','u'],'よ':['y','o'],
-    'わ':['w','a'],'を':['','o'],'ん':['','N']
-  });
-})();
-const SMALL_V = {'ゃ':'a','ゅ':'u','ょ':'o','ぁ':'a','ぃ':'i','ぅ':'u','ぇ':'e','ぉ':'o'};
+/* ---------- サンプル曲(songs/*.uta と同じ内容) ---------- */
+const EXAMPLES = {
+  '⭐ きらきらのほし': `# きらきらのほし(メロディ: きらきら星 / 歌詞: オリジナル)
+@tempo 104
+@voice うたこ
+@style ふつう
 
-function toHiragana(s){
-  return s.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
-}
-// split lyric text into moras (きゃ = 1 mora)
-function splitMoras(text){
-  const s = toHiragana(text).replace(/[^ぁ-ゖー]/g, '');
-  const out = [];
-  for (const ch of s){
-    if (SMALL_V[ch] && out.length) out[out.length - 1] += ch;
-    else out.push(ch);
-  }
-  return out;
-}
-// mora string -> {c, v, pal} | {rest} | {ext} (extend previous vowel)
-function parseMora(m){
-  m = toHiragana(m || '');
-  if (!m || m === 'っ') return {rest:true};
-  if (m[0] === 'ー') return {ext:true};
-  let pal = null, c = '', v = 'a';
-  const base = KMAP[m[0]];
-  if (base){ c = base[0]; v = base[1]; }
-  if (m.length > 1 && SMALL_V[m[1]]){
-    v = SMALL_V[m[1]];
-    if ('ゃゅょ'.includes(m[1])) pal = 'i';   // palatal glide きゃ/にゃ …
-  }
-  if (c === 'y'){ c = ''; pal = 'i'; }
-  if (c === 'w'){ c = ''; pal = 'u'; }
-  return {c, v, pal};
-}
+ど4:き ど4:ら そ4:き そ4:ら | ら4:ほ ら4:し そ4:が:8
+ふぁ4:よ ふぁ4:ぞ み4:ら み4:に | れ4:ひ れ4:か ど4:る:8
+そ4:ち そ4:い ふぁ4:さ ふぁ4:な | み4:ゆ み4:め れ4:を:8
+そ4:の そ4:せ ふぁ4:て ふぁ4:ま | み4:た み4:た れ4:く:8
+ど4:き ど4:ら そ4:き そ4:ら | ら4:ほ ら4:し そ4:が:8
+ふぁ4:よ ふぁ4:ぞ み4:ら み4:に | れ4:ひ れ4:か ど4:る:8~`,
+  '🐱 ねこのうた': `# ねこのうた(メロディ: かえるの合唱 / 歌詞: オリジナル)
+@tempo 120
+@voice ちびすけ
+@style げんき
 
-/* ---------- 2. synthesis ---------- */
-// Japanese vowel formants [Hz] and relative amplitudes
-const VOWELS = {
-  a:{f:[800,1200,2600,3300], amp:[1.0,0.35,0.18,0.08]},
-  i:{f:[320,2400,3100,3700], amp:[1.0,0.20,0.15,0.06]},
-  u:{f:[340,1300,2500,3300], amp:[1.0,0.25,0.12,0.05]},
-  e:{f:[520,1900,2700,3400], amp:[1.0,0.30,0.16,0.07]},
-  o:{f:[500,850,2600,3300],  amp:[1.0,0.35,0.12,0.05]},
-  N:{f:[280,1000,2300,3000], amp:[1.0,0.15,0.06,0.03]}   // ん
-};
-const CONS = {
-  k:{type:'stop', gap:0.020, f:1700, q:2.0, b:0.035, a:0.50},
-  g:{type:'stop', gap:0.012, f:1400, q:2.0, b:0.025, a:0.35},
-  t:{type:'stop', gap:0.020, f:4200, q:1.5, b:0.030, a:0.50},
-  d:{type:'stop', gap:0.012, f:3500, q:1.5, b:0.022, a:0.35},
-  p:{type:'stop', gap:0.020, f:800,  q:1.2, b:0.030, a:0.50},
-  b:{type:'stop', gap:0.012, f:700,  q:1.2, b:0.022, a:0.35},
-  s:{type:'fric', dur:0.090, f:6300, q:1.2, a:0.35},
-  z:{type:'fric', dur:0.060, f:5800, q:1.2, a:0.30},
-  sh:{type:'fric', dur:0.090, f:3200, q:1.6, a:0.40},
-  j:{type:'fric', dur:0.060, f:3000, q:1.6, a:0.35},
-  ch:{type:'fric', dur:0.070, f:3300, q:1.6, a:0.40},
-  ts:{type:'fric', dur:0.060, f:5800, q:1.2, a:0.35},
-  h:{type:'fric', dur:0.070, f:1600, q:0.7, a:0.30},
-  f:{type:'fric', dur:0.080, f:1100, q:0.8, a:0.30},
-  n:{type:'nasal', dur:0.055},
-  m:{type:'nasal', dur:0.070},
-  r:{type:'flap', dur:0.030}
-};
-const VOICES = {
-  uta:  {label:'🎀 うたこ（ふつう）',   wave:'sawtooth', shift:1.00, pitch:0,   vibRate:5.6, vibDepth:22, glide:true,  breath:0.05},
-  chibi:{label:'🐣 ちびすけ（たかい）', wave:'sawtooth', shift:1.27, pitch:7,   vibRate:6.6, vibDepth:18, glide:true,  breath:0.04},
-  robo: {label:'🤖 ロボまる（きかい）', wave:'square',   shift:1.00, pitch:0,   vibRate:0,   vibDepth:0,  glide:false, breath:0.00},
-  oji:  {label:'🎩 おじさま（ひくい）', wave:'sawtooth', shift:0.80, pitch:-12, vibRate:4.8, vibDepth:35, glide:true,  breath:0.10}
+ど4:ね れ4:こ み4:の ふぁ4:お | み4:う れ4:た ど4:が ・:4
+み4:よ ふぁ4:る そ4:に ら4:ひ | そ4:び ふぁ4:く み4:よ ・:4
+ど4:にゃ ・:4 ど4:にゃ ・:4 | ど4:にゃ ・:4 ど4:にゃ ・:4
+ど4:みゃ:2 ど4:みゃ:2 れ4:みゃ:2 れ4:みゃ:2 み4:みゃ:2 み4:みゃ:2 ふぁ4:みゃ:2 ふぁ4:みゃ:2
+み4:にゃ れ4:にゃ ど4:にゃ:8~`,
+  '🐑 もふもふねこ': `# もふもふねこ(メロディ: メリーさんのひつじ / 歌詞: オリジナル)
+@tempo 112
+@voice うたこ
+@style ふつう
+
+み4:も れ4:ふ ど4:も れ4:ふ | み4:ね み4:こ み4:が:8
+れ4:き れ4:た れ4:よ:8 | み4:き そ4:た そ4:よ:8
+み4:お れ4:や ど4:つ れ4:を | み4:も み4:と み4:め み4:て
+れ4:う れ4:ち み4:に れ4:き | ど4:た:16>`,
+  '🌸 よざくらのうた(こぶし)': `# よざくらのうた(オリジナル / 調教スタイル「こぶし」のデモ)
+@tempo 76
+@voice おじさま
+@style こぶし
+
+ら3:よ:6< ど4:ざ:2 れ4:く:4 み4:ら:4 | れ4:ち:4 ど4:る:8*~
+・:4 ら3:か:4< ど4:ぜ:4 れ4:に:4 | み4:ゆ:6 れ4:れ:2 ど4:て:8>
+・:4 み4:こ:4< そ4:こ:4 ら4:ろ:6*~ そ4:に:2 | み4:し:4 れ4:み:4 み4:る:8>~
+・:4 ら3:よ:4< ど4:る:4 れ4:の:4 ど4:う:4 | ら3:た:12>*`,
+  '🤖 べたうちロボ': `# 調教なし(べたうち)のロボ声デモ
+@tempo 132
+@voice ロボまる
+@style べたうち
+
+ど4:わ ど4:た み4:し そ4:は | ど5:ろ:2 し4:ぼ:2 ら4:っ:2 そ4:と:2 ・:4
+ど4:う み4:た そ4:を ら4:う | そ4:た:4 み4:い:4 れ4:ま:4 ど4:す:8`
 };
 
-const midiToF = m => 440 * Math.pow(2, (m - 69) / 12);
-
-function getNoiseBuffer(ctx){
-  if (!ctx._noise){
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    ctx._noise = buf;
-  }
-  return ctx._noise;
-}
-function makeImpulse(ctx, dur, decay){
-  const len = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
-  for (let ch = 0; ch < 2; ch++){
-    const d = buf.getChannelData(ch);
-    for (let i = 0; i < len; i++)
-      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
-  }
-  return buf;
-}
-// master chain: notes -> [dry + small reverb] -> compressor -> dest
-function buildChain(ctx, dest){
-  const bus = ctx.createGain(); bus.gain.value = 0.8;
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -14;
-  bus.connect(comp);
-  const conv = ctx.createConvolver();
-  conv.buffer = makeImpulse(ctx, 1.5, 2.6);
-  const wet = ctx.createGain(); wet.gain.value = 0.16;
-  bus.connect(conv); conv.connect(wet); wet.connect(comp);
-  comp.connect(dest);
-  return bus;
-}
-
-function schedNoise(ctx, out, t0, t1, f, q, amp, attack){
-  const src = ctx.createBufferSource();
-  src.buffer = getNoiseBuffer(ctx); src.loop = true;
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(amp, t0 + attack);
-  g.gain.setValueAtTime(amp, Math.max(t0 + attack, t1 - 0.02));
-  g.gain.linearRampToValueAtTime(0, t1);
-  src.connect(bp); bp.connect(g); g.connect(out);
-  src.start(t0); src.stop(t1 + 0.02);
-}
-
-// consonant onset; returns time the vowel should start
-function schedConsonant(ctx, out, c, t0, f0){
-  switch (c.type){
-    case 'fric':
-      schedNoise(ctx, out, t0, t0 + c.dur + 0.02, c.f, c.q, c.a, c.dur * 0.4);
-      return t0 + c.dur * 0.6;
-    case 'stop': {
-      const tb = t0 + c.gap;
-      schedNoise(ctx, out, tb, tb + c.b, c.f, c.q, c.a, 0.003);
-      return tb + c.b * 0.8;
-    }
-    case 'nasal': {
-      const o = ctx.createOscillator();
-      o.type = 'sine'; o.frequency.value = f0;
-      const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass'; lp.frequency.value = 380;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(0.5, t0 + 0.015);
-      g.gain.linearRampToValueAtTime(0.05, t0 + c.dur);
-      o.connect(lp); lp.connect(g); g.connect(out);
-      o.start(t0); o.stop(t0 + c.dur + 0.02);
-      return t0 + c.dur * 0.8;
-    }
-    case 'flap':
-      schedNoise(ctx, out, t0 + 0.008, t0 + 0.03, 900, 1.5, 0.25, 0.004);
-      return t0 + c.dur;
-  }
-  return t0;
-}
-
-/**
- * Schedule one sung note.
- * note: {start,len,midi,lyric} in 16th steps.  Returns vowel key used (for 'ー').
- */
-function schedNote(ctx, out, note, tempo, voice, pad, legatoF0, prevVowel){
-  const st = 60 / tempo / 4;                      // seconds per 16th
-  const t0 = pad + note.start * st;
-  const tEnd = t0 + note.len * st;
-  let ph = parseMora(note.lyric);
-  if (ph.rest) return prevVowel;
-  if (ph.ext) ph = {c:'', v: prevVowel || 'a', pal:null};
-
-  const f0 = midiToF(note.midi + voice.pitch);
-  let vStart = t0;
-  const c = CONS[ph.c];
-  if (c) vStart = schedConsonant(ctx, out, c, t0, f0);
-  vStart = Math.min(vStart, Math.max(t0, tEnd - 0.05));
-
-  const vw = VOWELS[ph.v] || VOWELS.a;
-  const osc = ctx.createOscillator();
-  osc.type = voice.wave;
-  if (voice.glide && legatoF0 && !c){
-    osc.frequency.setValueAtTime(legatoF0, vStart);
-    osc.frequency.exponentialRampToValueAtTime(f0, vStart + 0.06);
-  } else {
-    osc.frequency.setValueAtTime(f0, vStart);
-  }
-  if (voice.vibDepth > 0){
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine'; lfo.frequency.value = voice.vibRate;
-    const vg = ctx.createGain();
-    vg.gain.setValueAtTime(0, vStart);
-    vg.gain.linearRampToValueAtTime(voice.vibDepth, vStart + 0.35);
-    lfo.connect(vg); vg.connect(osc.detune);
-    lfo.start(vStart); lfo.stop(tEnd + 0.1);
-  }
-
-  // amplitude envelope for the whole vowel
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0, vStart);
-  env.gain.linearRampToValueAtTime(1, vStart + 0.025);
-  env.gain.setValueAtTime(1, Math.max(vStart + 0.025, tEnd - 0.06));
-  env.gain.linearRampToValueAtTime(0, tEnd);
-  env.connect(out);
-
-  // parallel formant filters
-  const palFrom = ph.pal ? VOWELS[ph.pal] : null;
-  for (let i = 0; i < vw.f.length; i++){
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass'; bp.Q.value = 9;
-    const target = vw.f[i] * voice.shift;
-    if (palFrom){
-      bp.frequency.setValueAtTime(palFrom.f[i] * voice.shift, vStart);
-      bp.frequency.exponentialRampToValueAtTime(target, vStart + 0.09);
-    } else {
-      bp.frequency.setValueAtTime(target, vStart);
-    }
-    const g = ctx.createGain(); g.gain.value = vw.amp[i];
-    osc.connect(bp); bp.connect(g); g.connect(env);
-  }
-  if (voice.breath > 0)
-    schedNoise(ctx, out, vStart, tEnd, 3200, 0.6, voice.breath, 0.03);
-
-  osc.start(vStart); osc.stop(tEnd + 0.05);
-  return ph.v;
-}
-
-// schedule the whole song; returns duration in seconds
-function scheduleSong(ctx, dest, notes, tempo, voiceKey, pad){
-  const voice = VOICES[voiceKey] || VOICES.uta;
-  const bus = buildChain(ctx, dest);
-  const st = 60 / tempo / 4;
-  const sorted = [...notes].sort((a, b) => a.start - b.start || a.midi - b.midi);
-  let prevVowel = 'a', prevEnd = -1, prevF0 = 0;
-  for (const n of sorted){
-    const legato = Math.abs(prevEnd - n.start) < 0.001 ? prevF0 : 0;
-    prevVowel = schedNote(ctx, bus, n, tempo, voice, pad, legato, prevVowel);
-    prevEnd = n.start + n.len;
-    prevF0 = midiToF(n.midi + voice.pitch);
-  }
-  const last = sorted.reduce((m, n) => Math.max(m, n.start + n.len), 0);
-  return pad + last * st;
-}
-
-/* ---------- 3. piano roll ---------- */
-const STEPS = 256, CELL_W = 22, CELL_H = 16;
-const MIDI_HIGH = 83, MIDI_LOW = 48;               // B5 .. C3
-const ROWS = MIDI_HIGH - MIDI_LOW + 1;
-const KEY_W = 46;
-const NOTE_NAMES = ['ド','ド#','レ','レ#','ミ','ファ','ファ#','ソ','ソ#','ラ','ラ#','シ'];
-const VOWEL_COLOR = {a:'#ff8fab', i:'#ffd166', u:'#90caf9', e:'#95d5b2', o:'#ffab73', N:'#cdb4db', rest:'#d7ccc8'};
-
-let notes = [];          // {start,len,midi,lyric}
-let tempo = 110;
-let voiceKey = 'uta';
-let defaultLen = 4;
-
-const gridCanvas = document.getElementById('gridCanvas');
-const keysCanvas = document.getElementById('keysCanvas');
-const rollScroll = document.getElementById('rollScroll');
-const playheadEl = document.getElementById('playhead');
-gridCanvas.width = STEPS * CELL_W; gridCanvas.height = ROWS * CELL_H;
-keysCanvas.width = KEY_W; keysCanvas.height = ROWS * CELL_H;
-document.getElementById('rollContent').style.width = gridCanvas.width + 'px';
-document.getElementById('rollContent').style.height = gridCanvas.height + 'px';
-playheadEl.style.height = gridCanvas.height + 'px';
-
-function noteColor(n){
-  const ph = parseMora(n.lyric);
-  if (ph.rest) return VOWEL_COLOR.rest;
-  if (ph.ext) return '#e0e0e0';
-  return VOWEL_COLOR[ph.v] || VOWEL_COLOR.a;
-}
-function drawKeys(){
-  const c = keysCanvas.getContext('2d');
-  c.clearRect(0, 0, KEY_W, keysCanvas.height);
-  for (let r = 0; r < ROWS; r++){
-    const midi = MIDI_HIGH - r, y = r * CELL_H, pc = midi % 12;
-    const black = [1,3,6,8,10].includes(pc);
-    c.fillStyle = black ? '#5d4f43' : '#fffdf8';
-    c.fillRect(0, y, KEY_W, CELL_H);
-    c.strokeStyle = '#e8ddcf';
-    c.strokeRect(0.5, y + 0.5, KEY_W - 1, CELL_H - 1);
-    if (pc === 0){
-      c.fillStyle = '#a08f7d'; c.font = '9px sans-serif';
-      c.fillText('ド' + (Math.floor(midi / 12) - 1), 6, y + 12);
-    }
-  }
-}
-function drawGrid(){
-  const c = gridCanvas.getContext('2d');
-  c.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-  for (let r = 0; r < ROWS; r++){
-    const midi = MIDI_HIGH - r, pc = midi % 12;
-    c.fillStyle = [1,3,6,8,10].includes(pc) ? '#f6efe3' : '#fffdf8';
-    if (pc === 0) c.fillStyle = '#fdf0e0';
-    c.fillRect(0, r * CELL_H, gridCanvas.width, CELL_H);
-  }
-  for (let s = 0; s <= STEPS; s++){
-    c.strokeStyle = s % 16 === 0 ? '#d8c8b2' : s % 4 === 0 ? '#eadfce' : '#f4ece0';
-    c.lineWidth = s % 16 === 0 ? 2 : 1;
-    c.beginPath();
-    c.moveTo(s * CELL_W + 0.5, 0); c.lineTo(s * CELL_W + 0.5, gridCanvas.height);
-    c.stroke();
-  }
-  c.lineWidth = 1;
-  for (let r = 0; r <= ROWS; r++){
-    c.strokeStyle = '#f0e6d8';
-    c.beginPath();
-    c.moveTo(0, r * CELL_H + 0.5); c.lineTo(gridCanvas.width, r * CELL_H + 0.5);
-    c.stroke();
-  }
-  for (const n of notes){
-    const x = n.start * CELL_W, y = (MIDI_HIGH - n.midi) * CELL_H;
-    const w = n.len * CELL_W - 2, h = CELL_H - 2;
-    c.fillStyle = noteColor(n);
-    c.strokeStyle = 'rgba(74,63,53,.45)';
-    c.beginPath();
-    c.roundRect(x + 1, y + 1, w, h, 5);
-    c.fill(); c.stroke();
-    c.fillStyle = '#4a3f35'; c.font = 'bold 10px sans-serif';
-    c.save();
-    c.beginPath(); c.rect(x + 1, y, w, CELL_H); c.clip();
-    c.fillText(n.lyric, x + 5, y + 12);
-    c.restore();
-  }
-}
-function redraw(){ drawGrid(); }
-
-function noteAt(step, midi, xpx){
-  for (let i = notes.length - 1; i >= 0; i--){
-    const n = notes[i];
-    if (n.midi === midi && step >= n.start && step < n.start + n.len){
-      const edge = (n.start + n.len) * CELL_W - xpx < 7;
-      return {n, edge};
-    }
-  }
-  return null;
-}
-
-let drag = null;
-gridCanvas.addEventListener('pointerdown', e => {
-  if (e.button === 2) return;
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const step = Math.floor(x / CELL_W), midi = MIDI_HIGH - Math.floor(y / CELL_H);
-  if (step < 0 || step >= STEPS || midi < MIDI_LOW || midi > MIDI_HIGH) return;
-  const hit = noteAt(step, midi, x);
-  if (hit && (e.altKey)){ removeNote(hit.n); return; }
-  if (hit){
-    drag = hit.edge
-      ? {mode:'resize', n:hit.n}
-      : {mode:'move', n:hit.n, dStep:step - hit.n.start, fromMidi:midi};
-  } else {
-    const n = {start: Math.floor(step / 2) * 2, len: defaultLen, midi, lyric:'ら'};
-    n.start = Math.min(n.start, STEPS - n.len);
-    notes.push(n);
-    drag = {mode:'move', n, dStep: step - n.start, fromMidi: midi, isNew:true};
-    previewNote(n);
-  }
-  gridCanvas.setPointerCapture(e.pointerId);
-  redraw();
-});
-gridCanvas.addEventListener('pointermove', e => {
-  if (!drag) return;
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const step = Math.floor(x / CELL_W);
-  const midi = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, MIDI_HIGH - Math.floor(y / CELL_H)));
-  const n = drag.n;
-  if (drag.mode === 'move'){
-    const ns = Math.max(0, Math.min(STEPS - n.len, step - drag.dStep));
-    if (ns !== n.start || midi !== n.midi){
-      const pitchChanged = midi !== n.midi;
-      n.start = ns; n.midi = midi;
-      if (pitchChanged) previewNote(n);
-      redraw();
-    }
-  } else {
-    const nl = Math.max(1, Math.min(STEPS - n.start, step - n.start + 1));
-    if (nl !== n.len){ n.len = nl; defaultLen = nl; redraw(); }
-  }
-});
-gridCanvas.addEventListener('pointerup', () => { drag = null; saveLocal(); });
-gridCanvas.addEventListener('contextmenu', e => {
-  e.preventDefault();
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const hit = noteAt(Math.floor(x / CELL_W), MIDI_HIGH - Math.floor(y / CELL_H), x);
-  if (hit) removeNote(hit.n);
-});
-gridCanvas.addEventListener('dblclick', e => {
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const hit = noteAt(Math.floor(x / CELL_W), MIDI_HIGH - Math.floor(y / CELL_H), x);
-  if (!hit) return;
-  const v = prompt('この音の歌詞（1音ぶん・ひらがな）', hit.n.lyric);
-  if (v !== null){ hit.n.lyric = splitMoras(v)[0] || 'ら'; redraw(); saveLocal(); }
-});
-function removeNote(n){
-  notes = notes.filter(x => x !== n);
-  redraw(); saveLocal();
-}
-keysCanvas.addEventListener('pointerdown', e => {
-  const midi = MIDI_HIGH - Math.floor((e.clientY - keysCanvas.getBoundingClientRect().top) / CELL_H);
-  if (midi >= MIDI_LOW && midi <= MIDI_HIGH) previewNote({midi, lyric:'ら'});
-});
-
-/* ---------- playback ---------- */
-let audioCtx = null;
-let playing = null;   // {gain, startedAt, dur, raf}
+/* ---------- 再生 ---------- */
+const scoreEl = document.getElementById('score');
+const errEl = document.getElementById('err');
+let audioCtx = null, current = null;   // current = {src, startedAt, timeline, duration, raf}
+let currentVoice = 'うたこ';
 
 function getCtx(){
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
-function previewNote(n){
+function parseScore(){
+  errEl.textContent = '';
   try {
-    const ctx = getCtx();
-    const g = ctx.createGain(); g.connect(ctx.destination);
-    schedNote(ctx, g, {start:0, len:3, midi:n.midi, lyric:n.lyric},
-              tempo, VOICES[voiceKey], ctx.currentTime + 0.02, 0, 'a');
-  } catch(_){}
+    return Utau.parse(scoreEl.value);
+  } catch(e){
+    errEl.textContent = e.message;
+    setSpeech('んん? 譜面がよめないよ…');
+    return null;
+  }
 }
 function play(){
   stop();
-  if (!notes.length){ toast('おんぷを置いてね！ 🎲おまかせ作曲でもOK'); return; }
+  const song = parseScore();
+  if (!song) return;
+  if (!song.notes.length){ toast('音符がないよ!サンプルを押してみてね'); return; }
+  currentVoice = song.voice;
+  const {samples, duration, timeline} = Utau.render(song);
   const ctx = getCtx();
-  const gate = ctx.createGain(); gate.connect(ctx.destination);
-  const pad = ctx.currentTime + 0.15;
-  const dur = scheduleSong(ctx, gate, notes, tempo, voiceKey, pad);
-  playing = {gate, startedAt: pad, dur, raf: 0};
-  playheadEl.style.display = 'block';
+  const ab = ctx.createBuffer(1, samples.length, Utau.SR);
+  ab.copyToChannel(samples, 0);
+  const src = ctx.createBufferSource();
+  src.buffer = ab; src.connect(ctx.destination);
+  const startedAt = ctx.currentTime + 0.05;
+  src.start(startedAt);
+  current = {src, startedAt, timeline, duration, raf:0};
   face.singing = true;
-  const st = 60 / tempo / 4;
   const tick = () => {
-    if (!playing) return;
-    const t = ctx.currentTime - playing.startedAt;
-    if (t > playing.dur - playing.startedAt + 0){ /* handled below */ }
-    const step = t / st;
-    const x = step * CELL_W;
-    playheadEl.style.left = x + 'px';
-    const view = rollScroll.clientWidth;
-    if (x - rollScroll.scrollLeft > view * 0.75) rollScroll.scrollLeft = x - view * 0.3;
-    // current vowel for the face
-    let vowel = null;
-    for (const n of notes){
-      if (step >= n.start && step < n.start + n.len){
-        const ph = parseMora(n.lyric);
-        vowel = ph.rest ? null : (ph.ext ? face.vowel : ph.v);
-        break;
-      }
-    }
-    face.vowel = vowel;
-    if (ctx.currentTime > playing.dur + 0.3){ stop(); return; }
-    playing.raf = requestAnimationFrame(tick);
+    if (!current) return;
+    const t = ctx.currentTime - current.startedAt;
+    let ev = null;
+    for (const e of current.timeline)
+      if (t >= e.t0 && t < e.t1){ ev = e; break; }
+    face.vowel = ev ? ev.v : null;
+    setSpeech(ev ? '♪ ' + ev.lyric : '🎵 …');
+    if (t > current.duration){ stop(); return; }
+    current.raf = requestAnimationFrame(tick);
   };
   tick();
-  setSpeech('🎵 うたってるよ〜');
 }
 function stop(){
-  if (!playing) return;
-  cancelAnimationFrame(playing.raf);
-  playing.gate.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
-  const g = playing.gate;
-  setTimeout(() => g.disconnect(), 300);
-  playing = null;
-  playheadEl.style.display = 'none';
+  if (!current) return;
+  cancelAnimationFrame(current.raf);
+  try { current.src.stop(); } catch(_){}
+  current = null;
   face.singing = false; face.vowel = null;
   setSpeech(randomIdleLine());
 }
 
-/* ---------- WAV export ---------- */
-async function renderSongBuffer(){
-  const st = 60 / tempo / 4;
-  const last = notes.reduce((m, n) => Math.max(m, n.start + n.len), 0);
-  const dur = last * st + 2;
-  const ctx = new OfflineAudioContext(2, Math.ceil(44100 * dur), 44100);
-  scheduleSong(ctx, ctx.destination, notes, tempo, voiceKey, 0.1);
-  return ctx.startRendering();
-}
-function bufferToWav(buf){
-  const nCh = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate;
-  const bytes = 44 + len * nCh * 2;
-  const ab = new ArrayBuffer(bytes), dv = new DataView(ab);
-  const wstr = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  wstr(0, 'RIFF'); dv.setUint32(4, bytes - 8, true); wstr(8, 'WAVE');
-  wstr(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
-  dv.setUint16(22, nCh, true); dv.setUint32(24, sr, true);
-  dv.setUint32(28, sr * nCh * 2, true); dv.setUint16(32, nCh * 2, true);
-  dv.setUint16(34, 16, true); wstr(36, 'data'); dv.setUint32(40, len * nCh * 2, true);
-  let off = 44;
-  const chans = [];
-  for (let c = 0; c < nCh; c++) chans.push(buf.getChannelData(c));
-  for (let i = 0; i < len; i++)
-    for (let c = 0; c < nCh; c++){
-      const s = Math.max(-1, Math.min(1, chans[c][i]));
-      dv.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-      off += 2;
-    }
-  return new Blob([ab], {type:'audio/wav'});
-}
-async function exportWav(){
-  if (!notes.length){ toast('おんぷがないよ！'); return; }
-  toast('WAVをつくってるよ…');
-  const buf = await renderSongBuffer();
-  const url = URL.createObjectURL(bufferToWav(buf));
+/* ---------- WAV / 共有 ---------- */
+function exportWav(){
+  const song = parseScore();
+  if (!song || !song.notes.length){ toast('音符がないよ!'); return; }
+  const {samples} = Utau.render(song);
+  const url = URL.createObjectURL(new Blob([Utau.toWav(samples)], {type:'audio/wav'}));
   const a = document.createElement('a');
   a.href = url; a.download = 'utaukun-song.wav';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast('できたよ！ ⬇');
+  toast('WAVにしたよ! ⬇');
+}
+function shareLink(){
+  if (!parseScore()) return;
+  const b64 = btoa(unescape(encodeURIComponent(scoreEl.value)));
+  const url = location.origin + location.pathname + '#s=' + b64;
+  (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+    .then(() => toast('リンクをコピーしたよ!ともだちに送ってね 🔗'))
+    .catch(() => prompt('このリンクをコピーしてね', url));
+}
+function loadFromHash(){
+  const m = location.hash.match(/#s=(.+)/);
+  if (!m) return false;
+  try {
+    scoreEl.value = decodeURIComponent(escape(atob(m[1])));
+    setSpeech('ともだちの曲がとどいたよ!▶をおしてね');
+    return true;
+  } catch(_){ return false; }
 }
 
-/* ---------- 4. face ---------- */
+/* ---------- かお ---------- */
 const face = {vowel:null, singing:false, blink:0, nextBlink:performance.now() + 1500};
 const faceCanvas = document.getElementById('faceCanvas');
+const VOICE_LOOK = {'うたこ':'uta', 'ちびすけ':'chibi', 'ロボまる':'robo', 'おじさま':'oji'};
 function drawFace(now){
   const c = faceCanvas.getContext('2d');
   const W = faceCanvas.width, H = faceCanvas.height;
   c.clearRect(0, 0, W, H);
   if (now > face.nextBlink){ face.blink = 1; face.nextBlink = now + 1200 + Math.random() * 3000; }
   if (face.blink > 0) face.blink = Math.max(0, face.blink - 0.12);
-  const bob = face.singing ? Math.sin(now / 1000 * Math.PI * 2 * (tempo / 60)) * 4 : Math.sin(now / 900) * 1.5;
+  const bob = face.singing ? Math.sin(now / 280) * 4 : Math.sin(now / 900) * 1.5;
   const cx = W / 2, cy = H / 2 + 6 + bob;
-  const v = voiceKey;
-  c.save();
-  // face base
+  const v = VOICE_LOOK[currentVoice] || 'uta';
   if (v === 'robo'){
     c.fillStyle = '#cfd8dc'; c.strokeStyle = '#90a4ae'; c.lineWidth = 4;
     c.beginPath(); c.roundRect(cx - 62, cy - 56, 124, 112, 18); c.fill(); c.stroke();
-    c.strokeStyle = '#90a4ae'; c.beginPath(); c.moveTo(cx, cy - 56); c.lineTo(cx, cy - 76); c.stroke();
+    c.beginPath(); c.moveTo(cx, cy - 56); c.lineTo(cx, cy - 76); c.stroke();
     c.fillStyle = '#ff5252'; c.beginPath(); c.arc(cx, cy - 80, 6, 0, 7); c.fill();
   } else {
     const skin = v === 'chibi' ? '#ffe9b3' : v === 'oji' ? '#f5d3ad' : '#ffe0e9';
     const edge = v === 'chibi' ? '#e0b25f' : v === 'oji' ? '#c99b64' : '#e8a3b8';
     c.fillStyle = skin; c.strokeStyle = edge; c.lineWidth = 4;
     c.beginPath(); c.arc(cx, cy, 62, 0, 7); c.fill(); c.stroke();
-    if (v === 'chibi'){                                  // あほ毛
+    if (v === 'chibi'){
       c.strokeStyle = '#e0b25f'; c.lineWidth = 3;
       c.beginPath(); c.moveTo(cx, cy - 60);
       c.quadraticCurveTo(cx + 6, cy - 84, cx + 22, cy - 78); c.stroke();
     }
-    if (v === 'uta'){                                    // リボン
+    if (v === 'uta'){
       c.fillStyle = '#ff7aa2';
-      c.beginPath(); c.moveTo(cx - 34, cy - 52);
-      c.lineTo(cx - 52, cy - 64); c.lineTo(cx - 44, cy - 42); c.closePath(); c.fill();
-      c.beginPath(); c.moveTo(cx - 34, cy - 52);
-      c.lineTo(cx - 20, cy - 68); c.lineTo(cx - 24, cy - 44); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(cx - 34, cy - 52); c.lineTo(cx - 52, cy - 64); c.lineTo(cx - 44, cy - 42); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(cx - 34, cy - 52); c.lineTo(cx - 20, cy - 68); c.lineTo(cx - 24, cy - 44); c.closePath(); c.fill();
       c.beginPath(); c.arc(cx - 33, cy - 53, 6, 0, 7); c.fill();
     }
-    if (v === 'oji'){                                    // シルクハット
+    if (v === 'oji'){
       c.fillStyle = '#4a3f35';
       c.fillRect(cx - 40, cy - 72, 80, 10);
       c.fillRect(cx - 26, cy - 104, 52, 34);
     }
-    // ほっぺ
     c.fillStyle = 'rgba(255,122,162,.35)';
     c.beginPath(); c.arc(cx - 38, cy + 14, 10, 0, 7); c.fill();
     c.beginPath(); c.arc(cx + 38, cy + 14, 10, 0, 7); c.fill();
   }
-  // eyes
   const eo = 24, ey = cy - 12;
-  c.fillStyle = v === 'robo' ? '#37474f' : '#4a3f35';
   const openness = 1 - Math.min(1, face.blink * 1.6);
   for (const s of [-1, 1]){
+    c.fillStyle = v === 'robo' ? '#37474f' : '#4a3f35';
     if (v === 'robo'){
       c.fillRect(cx + s * eo - 8, ey - 8 * openness, 16, Math.max(3, 16 * openness));
     } else if (openness < 0.3){
@@ -723,33 +297,28 @@ function drawFace(now){
       c.beginPath(); c.moveTo(cx + s * eo - 8, ey); c.lineTo(cx + s * eo + 8, ey); c.stroke();
     } else {
       c.beginPath(); c.ellipse(cx + s * eo, ey, 7, 9 * openness, 0, 0, 7); c.fill();
-      c.fillStyle = '#fff';
-      c.beginPath(); c.arc(cx + s * eo - 2, ey - 3, 2.5, 0, 7); c.fill();
-      c.fillStyle = v === 'robo' ? '#37474f' : '#4a3f35';
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(cx + s * eo - 2, ey - 3, 2.5, 0, 7); c.fill();
     }
   }
-  if (v === 'oji'){                                      // ひげ
+  if (v === 'oji'){
     c.strokeStyle = '#6d5a44'; c.lineWidth = 5;
     c.beginPath(); c.moveTo(cx - 4, cy + 16); c.quadraticCurveTo(cx - 22, cy + 10, cx - 30, cy + 20); c.stroke();
     c.beginPath(); c.moveTo(cx + 4, cy + 16); c.quadraticCurveTo(cx + 22, cy + 10, cx + 30, cy + 20); c.stroke();
   }
-  // mouth
-  const my = cy + 26;
-  c.fillStyle = '#b03a48'; c.strokeStyle = '#8e2e3a'; c.lineWidth = 2;
-  const mv = face.vowel;
+  const my = cy + 26, mv = face.vowel;
+  c.fillStyle = '#b03a48';
   c.beginPath();
   if (!mv){
     c.strokeStyle = '#4a3f35'; c.lineWidth = 3;
-    c.arc(cx, my - 6, 10, 0.3, Math.PI - 0.3);          // にっこり
-    c.stroke();
-  } else if (mv === 'a'){ c.ellipse(cx, my, 14, 13, 0, 0, 7); c.fill();
+    c.arc(cx, my - 6, 10, 0.3, Math.PI - 0.3); c.stroke();
+  } else if (mv === 'a'){
+    c.ellipse(cx, my, 14, 13, 0, 0, 7); c.fill();
     c.fillStyle = '#e57373'; c.beginPath(); c.ellipse(cx, my + 6, 8, 5, 0, 0, 7); c.fill();
   } else if (mv === 'i'){ c.roundRect(cx - 13, my - 3, 26, 6, 3); c.fill();
   } else if (mv === 'u'){ c.arc(cx, my, 6, 0, 7); c.fill();
   } else if (mv === 'e'){ c.ellipse(cx, my, 12, 7, 0, 0, 7); c.fill();
   } else if (mv === 'o'){ c.ellipse(cx, my, 8, 12, 0, 0, 7); c.fill();
-  } else { c.roundRect(cx - 8, my - 2, 16, 4, 2); c.fill(); }   // ん
-  // music notes while singing
+  } else { c.roundRect(cx - 8, my - 2, 16, 4, 2); c.fill(); }
   if (face.singing){
     c.font = '20px sans-serif'; c.fillStyle = '#ff7aa2';
     const p = (now / 700) % 1;
@@ -758,158 +327,13 @@ function drawFace(now){
     c.fillText('♫', cx - 88, cy - 10 - ((p + 0.5) % 1) * 30);
     c.globalAlpha = 1;
   }
-  c.restore();
   requestAnimationFrame(drawFace);
 }
 requestAnimationFrame(drawFace);
 
-const IDLE_LINES = ['うたいたいなあ…', 'おんぷをおいてね！', '🎲でおまかせもできるよ', 'きょうもいいこえ！', 'れんしゅうちゅう…らら〜♪'];
+const IDLE_LINES = ['うたいたいなあ…', '譜面をはってね!', 'AIに作曲たのんでみて♪', 'きょうもいいこえ!', 'れんしゅうちゅう…らら〜♪'];
 function randomIdleLine(){ return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]; }
 function setSpeech(s){ document.getElementById('speech').textContent = s; }
-
-/* ---------- 5. presets / random / share ---------- */
-// build notes from [midi, lyric, len?] rows; null = rest of given length
-function seq(rows){
-  const out = []; let pos = 0;
-  for (const r of rows){
-    if (r[0] === null){ pos += r[1]; continue; }
-    const len = r[2] || 4;
-    out.push({start: pos, len, midi: r[0], lyric: r[1]});
-    pos += len;
-  }
-  return out;
-}
-const PRESETS = {
-  twinkle: {name:'⭐ きらきらのほし', tempo:104, notes: seq([
-    [60,'き'],[60,'ら'],[67,'き'],[67,'ら'],[69,'ほ'],[69,'し'],[67,'が',8],
-    [65,'よ'],[65,'ぞ'],[64,'ら'],[64,'に'],[62,'ひ'],[62,'か'],[60,'る',8],
-    [67,'ち'],[67,'い'],[65,'さ'],[65,'な'],[64,'ゆ'],[64,'め'],[62,'を',8],
-    [67,'の'],[67,'せ'],[65,'て'],[65,'ま'],[64,'た'],[64,'た'],[62,'く',8],
-    [60,'き'],[60,'ら'],[67,'き'],[67,'ら'],[69,'ほ'],[69,'し'],[67,'が',8],
-    [65,'よ'],[65,'ぞ'],[64,'ら'],[64,'に'],[62,'ひ'],[62,'か'],[60,'る',8]
-  ])},
-  neko: {name:'🐸→🐱 ねこのうた', tempo:120, notes: seq([
-    [60,'ね'],[62,'こ'],[64,'の'],[65,'お'],[64,'う'],[62,'た'],[60,'が'],[null,4],
-    [64,'よ'],[65,'る'],[67,'に'],[69,'ひ'],[67,'び'],[65,'く'],[64,'よ'],[null,4],
-    [60,'にゃ'],[null,4],[60,'にゃ'],[null,4],[60,'にゃ'],[null,4],[60,'にゃ'],[null,4],
-    [60,'みゃ',2],[60,'みゃ',2],[62,'みゃ',2],[62,'みゃ',2],
-    [64,'みゃ',2],[64,'みゃ',2],[65,'みゃ',2],[65,'みゃ',2],
-    [64,'にゃ'],[62,'にゃ'],[60,'にゃ',8]
-  ])},
-  mofu: {name:'🐑→🐈 もふもふねこ', tempo:112, notes: seq([
-    [64,'も'],[62,'ふ'],[60,'も'],[62,'ふ'],[64,'ね'],[64,'こ'],[64,'が',8],
-    [62,'き'],[62,'た'],[62,'よ',8],
-    [64,'き'],[67,'た'],[67,'よ',8],
-    [64,'お'],[62,'や'],[60,'つ'],[62,'を'],[64,'も'],[64,'と'],[64,'め'],[64,'て'],
-    [62,'う'],[62,'ち'],[64,'に'],[62,'き'],[60,'た',16]
-  ])}
-};
-function loadPreset(key){
-  const p = PRESETS[key];
-  if (!p) return;
-  notes = p.notes.map(n => ({...n}));
-  tempo = p.tempo;
-  document.getElementById('tempo').value = tempo;
-  document.getElementById('tempoVal').textContent = tempo;
-  document.getElementById('lyricsBox').value = notes.map(n => n.lyric).join('');
-  rollScroll.scrollLeft = 0;
-  redraw(); saveLocal();
-  setSpeech(p.name + '、うたえるよ！');
-}
-
-const WORD_POOL = ['ねこ','たこやき','もふもふ','きらきら','るんるん','ぴょんぴょん','わくわく','おにぎり','ころころ','ふわふわ','にゃんにゃん','うたごえ','そらとぶ','らーめん','ぷにぷに','ほしぞら','とことこ','めろでぃ','はっぴー','おんがく'];
-function randomSong(){
-  const scale = [60,62,64,67,69,72,74];   // C major pentatonic
-  tempo = 96 + Math.floor(Math.random() * 6) * 8;
-  const patterns = [[4,4,4,4],[4,4,8],[8,4,4],[2,2,4,4,4],[4,2,2,4,4],[8,8],[4,4,2,2,4]];
-  const out = []; let pos = 0, idx = 2;
-  const bars = 4;
-  for (let b = 0; b < bars; b++){
-    if (b === bars - 1){
-      out.push({start: pos, len: 16, midi: Math.random() < 0.5 ? 60 : 72, lyric:''});
-      pos += 16; continue;
-    }
-    for (const len of patterns[Math.floor(Math.random() * patterns.length)]){
-      idx = Math.max(0, Math.min(scale.length - 1, idx + Math.floor(Math.random() * 5) - 2));
-      out.push({start: pos, len, midi: scale[idx], lyric:''});
-      pos += len;
-    }
-  }
-  // random lyrics
-  const words = [];
-  while (words.length < 5)
-    words.push(WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)]);
-  const moras = splitMoras(words.join(''));
-  out.forEach((n, i) => { n.lyric = moras[i % moras.length]; });
-  out[out.length - 1].lyric = 'ー';
-  notes = out;
-  document.getElementById('tempo').value = tempo;
-  document.getElementById('tempoVal').textContent = tempo;
-  document.getElementById('lyricsBox').value = words.join(' ');
-  rollScroll.scrollLeft = 0;
-  redraw(); saveLocal();
-  setSpeech('できたよ！さいせいしてみて♪');
-  play();
-}
-
-function flowLyrics(){
-  const moras = splitMoras(document.getElementById('lyricsBox').value);
-  if (!moras.length){ toast('ひらがなで歌詞をかいてね'); return; }
-  const sorted = [...notes].sort((a, b) => a.start - b.start || a.midi - b.midi);
-  sorted.forEach((n, i) => { n.lyric = moras[i % moras.length]; });
-  redraw(); saveLocal();
-  toast('歌詞を流しこんだよ 🎶');
-}
-
-/* share via URL hash */
-function serialize(){
-  return {v:1, t:tempo, vo:voiceKey, n:notes.map(n => [n.start, n.len, n.midi, n.lyric])};
-}
-function deserialize(o){
-  if (!o || o.v !== 1 || !Array.isArray(o.n)) return false;
-  tempo = Math.max(60, Math.min(200, +o.t || 110));
-  voiceKey = VOICES[o.vo] ? o.vo : 'uta';
-  notes = o.n.map(a => ({
-    start: Math.max(0, Math.min(STEPS - 1, +a[0] | 0)),
-    len:   Math.max(1, Math.min(STEPS, +a[1] | 0)),
-    midi:  Math.max(MIDI_LOW, Math.min(MIDI_HIGH, +a[2] | 0)),
-    lyric: String(a[3] || 'ら').slice(0, 3)
-  }));
-  return true;
-}
-function shareLink(){
-  const json = JSON.stringify(serialize());
-  const b64 = btoa(unescape(encodeURIComponent(json)));
-  const url = location.origin + location.pathname + '#s=' + b64;
-  (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
-    .then(() => toast('リンクをコピーしたよ！ともだちに送ってね 🔗'))
-    .catch(() => prompt('このリンクをコピーしてね', url));
-}
-function loadFromHash(){
-  const m = location.hash.match(/#s=(.+)/);
-  if (!m) return false;
-  try {
-    const json = decodeURIComponent(escape(atob(m[1])));
-    if (deserialize(JSON.parse(json))){
-      setSpeech('ともだちの曲がとどいたよ！▶をおしてね');
-      return true;
-    }
-  } catch(_){}
-  return false;
-}
-
-/* local autosave */
-function saveLocal(){
-  try { localStorage.setItem('utaukun-song', JSON.stringify(serialize())); } catch(_){}
-}
-function loadLocal(){
-  try {
-    const s = localStorage.getItem('utaukun-song');
-    return s ? deserialize(JSON.parse(s)) : false;
-  } catch(_){ return false; }
-}
-
-/* ---------- UI wiring ---------- */
 function toast(msg){
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -917,70 +341,54 @@ function toast(msg){
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('show'), 2200);
 }
-const voiceSel = document.getElementById('voiceSel');
-for (const [k, v] of Object.entries(VOICES)){
-  const op = document.createElement('option');
-  op.value = k; op.textContent = v.label;
-  voiceSel.appendChild(op);
+
+/* ---------- 配線 ---------- */
+const exWrap = document.getElementById('examples');
+for (const [name, text] of Object.entries(EXAMPLES)){
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.addEventListener('click', () => {
+    scoreEl.value = text;
+    errEl.textContent = '';
+    saveLocal();
+    play();
+  });
+  exWrap.appendChild(b);
 }
-const presetSel = document.getElementById('presetSel');
-for (const [k, p] of Object.entries(PRESETS)){
-  const op = document.createElement('option');
-  op.value = k; op.textContent = p.name;
-  presetSel.appendChild(op);
-}
-voiceSel.addEventListener('change', () => {
-  voiceKey = voiceSel.value; saveLocal();
-  previewNote({midi:64, lyric:'ら'});
-});
-presetSel.addEventListener('change', () => {
-  if (presetSel.value){ loadPreset(presetSel.value); presetSel.value = ''; }
-});
-document.getElementById('tempo').addEventListener('input', e => {
-  tempo = +e.target.value;
-  document.getElementById('tempoVal').textContent = tempo;
-  saveLocal();
-});
 document.getElementById('btnPlay').addEventListener('click', play);
 document.getElementById('btnStop').addEventListener('click', stop);
-document.getElementById('btnRandom').addEventListener('click', randomSong);
-document.getElementById('btnClear').addEventListener('click', () => {
-  if (notes.length && !confirm('ぜんぶけしちゃう？')) return;
-  notes = []; redraw(); saveLocal();
-});
-document.getElementById('btnWav').addEventListener('click', () => { exportWav().catch(e => toast('エラー: ' + e.message)); });
+document.getElementById('btnWav').addEventListener('click', exportWav);
 document.getElementById('btnShare').addEventListener('click', shareLink);
-document.getElementById('btnFlow').addEventListener('click', flowLyrics);
+scoreEl.addEventListener('input', saveLocal);
 document.addEventListener('keydown', e => {
-  if (e.code === 'Space' && !/TEXTAREA|INPUT/.test(document.activeElement.tagName)){
+  if (e.code === 'Space' && document.activeElement !== scoreEl){
     e.preventDefault();
-    playing ? stop() : play();
+    current ? stop() : play();
   }
 });
+function saveLocal(){
+  try { localStorage.setItem('utaukun-score', scoreEl.value); } catch(_){}
+}
 
-/* ---------- boot ---------- */
-drawKeys();
-if (!loadFromHash() && !loadLocal()) loadPreset('twinkle');
-document.getElementById('tempo').value = tempo;
-document.getElementById('tempoVal').textContent = tempo;
-voiceSel.value = voiceKey;
-document.getElementById('lyricsBox').value ||= notes.map(n => n.lyric).join('');
-redraw();
-setSpeech(randomIdleLine());
-// center scroll on first notes
-if (notes.length) rollScroll.scrollLeft = 0;
+/* ---------- 起動 ---------- */
+if (!loadFromHash()){
+  let saved = null;
+  try { saved = localStorage.getItem('utaukun-score'); } catch(_){}
+  scoreEl.value = saved || EXAMPLES['⭐ きらきらのほし'];
+  setSpeech(randomIdleLine());
+}
+// 譜面から声を推定して顔を出しておく
+try { currentVoice = Utau.parse(scoreEl.value).voice; } catch(_){}
 
-/* test hook (headless verification) */
+/* テスト用フック */
 window.__utaukun = {
-  parseMora, splitMoras, scheduleSong,
-  get notes(){ return notes; },
-  set notes(v){ notes = v; redraw(); },
-  renderPeak: async () => {
-    const buf = await renderSongBuffer();
-    let peak = 0;
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i += 20) peak = Math.max(peak, Math.abs(d[i]));
-    return peak;
+  play, stop,
+  renderPeak: () => {
+    const song = Utau.parse(scoreEl.value);
+    const {samples} = Utau.render(song);
+    let p = 0;
+    for (let i = 0; i < samples.length; i += 16) p = Math.max(p, Math.abs(samples[i]));
+    return p;
   }
 };
 </script>
