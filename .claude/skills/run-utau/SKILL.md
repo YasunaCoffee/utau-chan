@@ -61,6 +61,20 @@ python3 -m http.server 8000   # → http://localhost:8000/index.html
 
 譜面はURLに埋め込まれるので、共有リンクとして送れる。GitHub Pages(Settings → Pages → main / root)で公開も可能。
 
+## 実録音サンプルで歌わせる(重音テト等のUTAU音源)
+
+`sing.js` は録音を使わないフォルマント合成。対して `singteto.js` は、**UTAU音源(録音WAV+oto.ini)を切り貼りして**同じうたテキスト譜面を歌わせるミニUTAUリサンプラー(単独音/CV対応)。
+
+```bash
+node singteto.js songs/kirakira.uta                 # → songs/kirakira.teto.wav
+node singteto.js songs/kirakira.uta --bank "<単独音フォルダ>"
+UTAU_BANK="<単独音フォルダ>" node singteto.js songs/kirakira.uta
+```
+
+- 音源フォルダ = `oto.ini` のある単独音フォルダ(例: `重音テト単独音`)。未指定なら `~/dev/teto-voicebank/**/重音テト単独音` を自動探索。
+- 基準ピッチは実測 D#4(MIDI63)。そこからリサンプリングで移調するので、離れた音では声色(フォルマント)が上下する。ビブラート・連続音(VCV)は未対応(単独音のみ)。
+- **⚠️ 音源ファイルは同梱・コミット禁止**。重音テト音源(小山乃舞世)は再配布不可のため、各自ダウンロードしてリポジトリ外に置く。`singteto.js` はコードのみ(音源は含まない)。
+
 ## 新しい譜面を書いて鳴らす(要点)
 
 `高さ:歌詞[:長さ][調教記号]` を空白区切りで並べる。詳細は `README.md` と `node sing.js --help`。

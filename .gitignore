@@ -1,0 +1,7 @@
+# 生成物: うたごえWAVはコミットしない(sing.js / singteto.js の出力)
+*.wav
+
+# UTAU音源(重音テト等)は再配布禁止。リポジトリには絶対に入れない
+teto-voicebank/
+*音源*/
+oto.ini
