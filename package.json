@@ -11,6 +11,7 @@
   "scripts": {
     "sing": "node sing.js",
     "sing:teto": "node singteto.js",
+    "export:ust": "node export-ust.js",
     "analyze": "node tools/analyze-teto.js",
     "smoke": "node sing.js songs/kirakira.uta -o /tmp/utau-smoke.wav && echo OK"
   },
@@ -18,6 +19,7 @@
     "engine.js",
     "sing.js",
     "singteto.js",
+    "export-ust.js",
     "index.html",
     "songs/",
     "tools/"

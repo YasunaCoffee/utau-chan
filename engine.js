@@ -517,5 +517,145 @@ function toWav(f32) {
   return ab;
 }
 
-return {SR, parse, render, toWav, splitMoras, parseMora, VOICES, STYLES};
+/* ============ 8. USTエクスポート(本家UTAU用プロジェクトファイル) ============ */
+/*
+ * うたテキストの譜面を、本家UTAU(https://utau2008.xrea.jp/)で開ける
+ * UST形式(UST Version1.2)のテキストに変換する。
+ *
+ *   長さ   … うたテキストの1(16分音符) = 120tick(USTは4分音符=480tick)
+ *   調教   … スタイル/記号の判断は buildEvents と同じロジックで、
+ *             しゃくり・ポルタメント → Mode2ピッチベンド(PBS/PBW/PBY)
+ *             フォール             → 音尻のピッチ点
+ *             ビブラート           → VBR
+ *             !アクセント ?よわく  → Intensity
+ *   歌詞   … 「ー」は直前の母音のかなに展開、「っ」は休符(R)に
+ *
+ * 本家UTAUはShift-JISのWindowsアプリなので、保存時は encodeSjis() で
+ * Shift-JISのバイト列にしてから書き出すこと(CRLF改行はtoUstが付ける)。
+ */
+const VOWEL_KANA = {a: 'あ', i: 'い', u: 'う', e: 'え', o: 'お', N: 'ん'};
+
+function toUst(song, opts = {}) {
+  if (song.mode === 'かたり') {
+    throw new Error('かたりモードは音符がないのでUSTにできません(@mode うた の譜面でどうぞ)');
+  }
+  const style = STYLES[song.style], voice = VOICES[song.voice];
+  const TICK = 120;                          // うたテキストの長さ1(16分) → 120tick
+  const msPerLen = 15000 / song.tempo;       // 16分音符1つのミリ秒
+  const name = opts.name || 'utau-chan-song';
+  const lines = [
+    '[#VERSION]',
+    'UST Version1.2',
+    '[#SETTING]',
+    `Tempo=${song.tempo.toFixed(2)}`,
+    'Tracks=1',
+    `ProjectName=${name}`,
+    'VoiceDir=%VOICE%',
+    `OutFile=${name}.wav`,
+    `CacheDir=${name}.cache`,
+    'Tool1=wavtool.exe',
+    'Tool2=resampler.exe',
+    'Mode2=True'
+  ];
+  let idx = 0;
+  const push = fields => {
+    lines.push(`[#${String(idx++).padStart(4, '0')}]`);
+    lines.push(...fields);
+  };
+  const rest = len => push([`Length=${len * TICK}`, 'Lyric=R', 'NoteNum=60', 'PreUtterance=']);
+
+  const notes = [...song.notes].sort((a, b) => a.start - b.start);
+  let pos = 0, prevVowel = 'a', prevEnd = -1e9, prevMidi = null;
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    if (n.start > pos) rest(n.start - pos);  // 譜面上の休符(・:4)は間隔として現れる
+    pos = n.start + n.len;
+    const ph = parseMora(n.lyric);
+    if (ph.rest) { rest(n.len); prevEnd = -1e9; continue; }   // っ = 息つぎ
+    const lyric = ph.ext ? VOWEL_KANA[prevVowel] || 'あ' : n.lyric;
+    if (!ph.ext) prevVowel = ph.v;
+
+    // 調教の決定(buildEventsと同じ判断基準)
+    const legato = prevEnd === n.start;
+    const next = notes[i + 1];
+    const phraseEnd = !next || parseMora(next.lyric).rest || n.start + n.len !== next.start;
+    const m = n.mods || '';
+    const jumpUp = legato ? n.midi - prevMidi : 0;
+    const scoopSemi = m.includes('<') ? Math.max(1.2, style.scoopDepth)
+      : (style.scoop && (!legato || jumpUp >= 4) ? style.scoopDepth : 0);
+    const fallSemi = m.includes('>') ? Math.max(1.2, style.fall || 1.2)
+      : (style.fall && phraseEnd && n.len >= 6 ? style.fall : 0);
+    const vibCents = m.includes('_') ? 0
+      : voice.vibDepth * style.vibScale * (m.includes('~') ? 1.7 : 1);
+    const intensity = Math.round(100 * (m.includes('!') ? 1.2 : 1) * (m.includes('?') ? 0.7 : 1));
+
+    const fields = [
+      `Length=${n.len * TICK}`,
+      `Lyric=${lyric}`,
+      `NoteNum=${n.midi}`,
+      'PreUtterance=',
+      `Intensity=${intensity}`,
+      'Modulation=0'
+    ];
+    // Mode2ピッチベンド: PBYの単位は10セント(半音=10)、PBWはミリ秒
+    const startY = scoopSemi > 0 ? -scoopSemi * 10
+      : (style.glide && legato && prevMidi !== null ? (prevMidi - n.midi) * 10 : 0);
+    if (startY !== 0 || fallSemi > 0) {
+      const durMs = n.len * msPerLen;
+      const head = Math.round(Math.min(150, durMs * 0.4));
+      const pbw = [head], pby = [0];
+      if (fallSemi > 0) {
+        const tail = Math.round(Math.min(130, durMs * 0.3));
+        pbw.push(Math.max(0, Math.round(durMs) - head - tail), tail);
+        pby.push(0, Math.round(-fallSemi * 10));
+      }
+      fields.push(`PBS=0;${Math.round(startY * 10) / 10}`);
+      fields.push(`PBW=${pbw.join(',')}`);
+      fields.push(`PBY=${pby.join(',')}`);
+      fields.push(`PBM=${','.repeat(pbw.length - 1)}`);
+    }
+    if (vibCents > 0) {
+      const cycleMs = Math.round(1000 / (voice.vibRate || 5.5));
+      fields.push(`VBR=65,${cycleMs},${Math.round(vibCents)},20,20,0,0,0`);
+    }
+    push(fields);
+    prevEnd = n.start + n.len; prevMidi = n.midi;
+  }
+  lines.push('[#TRACKEND]');
+  return lines.join('\r\n') + '\r\n';
+}
+
+/* Shift-JISエンコーダ(依存ゼロのミニ実装)
+ * USTで使う範囲だけ: ASCII / ひらがな / カタカナ / よく使う記号。
+ * 表にない文字(漢字など)は '?' になる。 */
+const SJIS_PUNCT = {
+  0x3000: 0x8140, 0x3001: 0x8141, 0x3002: 0x8142, 0x30FB: 0x8145, 0x30FC: 0x815B,
+  0x2018: 0x8165, 0x2019: 0x8166, 0x201C: 0x8167, 0x201D: 0x8168,
+  0x300C: 0x8175, 0x300D: 0x8176, 0x3005: 0x8158,
+  0xFF01: 0x8149, 0xFF1F: 0x8148, 0xFF0C: 0x8143, 0xFF0E: 0x8144,
+  0xFF08: 0x8169, 0xFF09: 0x816A, 0xFF5E: 0x8160, 0x301C: 0x8160,
+  0x309B: 0x814A, 0x309C: 0x814B, 0x2026: 0x8163
+};
+function encodeSjis(str) {
+  const bytes = [];
+  for (const ch of String(str)) {
+    const cp = ch.codePointAt(0);
+    if (cp < 0x80) { bytes.push(cp); continue; }
+    let code = 0;
+    if (cp >= 0x3041 && cp <= 0x3093) {                    // ひらがな ぁ〜ん
+      code = 0x829F + (cp - 0x3041);
+    } else if (cp >= 0x30A1 && cp <= 0x30F6) {             // カタカナ ァ〜ヶ
+      let b2 = 0x40 + (cp - 0x30A1);
+      if (b2 >= 0x7F) b2++;                                // 2バイト目の0x7Fは欠番
+      code = 0x8300 | b2;
+    } else if (SJIS_PUNCT[cp]) {
+      code = SJIS_PUNCT[cp];
+    }
+    if (code) bytes.push(code >> 8, code & 0xFF);
+    else bytes.push(0x3F);                                 // '?'
+  }
+  return new Uint8Array(bytes);
+}
+
+return {SR, parse, render, toWav, toUst, encodeSjis, splitMoras, parseMora, VOICES, STYLES};
 });
