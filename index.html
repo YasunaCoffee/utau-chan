@@ -38,6 +38,26 @@
     transition:transform .25s; z-index:99; pointer-events:none;}
   #toast.show{transform:translateX(-50%) translateY(0);}
   footer{padding:0 20px 40px; font-size:12px; color:#a08f7d; line-height:1.8;}
+  /* ---- 楽譜プレビュー ---- */
+  #scoreCard{padding:12px 12px 10px;}
+  #scoreHead{display:flex; align-items:baseline; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
+  .scoreTitle{font-size:14px; font-weight:bold; letter-spacing:1px;}
+  #scoreMeta{font-size:12px; color:#8a7b6c;}
+  #scoreMeta .b{display:inline-block; background:#f6efe3; border:1px solid var(--line);
+    border-radius:999px; padding:1px 9px; margin-right:5px; color:var(--ink);}
+  #rollRow{display:flex; align-items:stretch; border:2px solid var(--line);
+    border-radius:12px; overflow:hidden; background:#fffdf8;}
+  #keysCanvas{display:block; flex-shrink:0; background:#fff;}
+  #rollScroll{position:relative; overflow-x:auto; overflow-y:hidden; flex:1; scrollbar-width:thin;}
+  #rollInner{position:relative;}
+  #rollCanvas{display:block;}
+  #playhead{position:absolute; top:0; bottom:0; left:0; width:2px;
+    background:var(--accent); box-shadow:0 0 6px rgba(255,122,162,.7);
+    transform:translateX(-3px); opacity:0; transition:opacity .15s; pointer-events:none;}
+  #playhead::before{content:""; position:absolute; top:0; left:-4px;
+    border:5px solid transparent; border-top-color:var(--accent); border-bottom:none;}
+  #playhead.on{opacity:1;}
+  #scoreEmpty{display:none; padding:26px 14px; text-align:center; color:#a08f7d; font-size:13px; line-height:1.9;}
 </style>
 </head>
 <body>
@@ -76,6 +96,22 @@
         <button id="btnUst">📤 UST書き出し</button>
         <button id="btnShare">🔗 共有リンク</button>
       </div>
+    </div>
+    <div class="card" id="scoreCard">
+      <div id="scoreHead">
+        <span class="scoreTitle">🎼 楽譜</span>
+        <span id="scoreMeta"></span>
+      </div>
+      <div id="rollRow">
+        <canvas id="keysCanvas"></canvas>
+        <div id="rollScroll">
+          <div id="rollInner">
+            <canvas id="rollCanvas"></canvas>
+            <div id="playhead"></div>
+          </div>
+        </div>
+      </div>
+      <div id="scoreEmpty"></div>
     </div>
     <div class="card hint" id="howto">
       <b>📝 譜面のかきかた(うたテキスト形式)</b><br>
@@ -202,6 +238,7 @@ function play(){
   const song = parseScore();
   if (!song) return;
   currentVoice = song.voice;
+  renderScore();
   const {samples, duration, timeline} = Utau.render(song);
   if (!timeline.length){ toast('うたう中身がないよ!サンプルを押してみてね'); return; }
   const ctx = getCtx();
@@ -213,6 +250,7 @@ function play(){
   src.start(startedAt);
   current = {src, startedAt, timeline, duration, raf:0};
   face.singing = true;
+  playheadEl.classList.add('on');
   const tick = () => {
     if (!current) return;
     const t = ctx.currentTime - current.startedAt;
@@ -221,6 +259,7 @@ function play(){
       if (t >= e.t0 && t < e.t1){ ev = e; break; }
     face.vowel = ev ? ev.v : null;
     setSpeech(ev ? '♪ ' + ev.lyric : '🎵 …');
+    updatePlayhead(t);
     if (t > current.duration){ stop(); return; }
     current.raf = requestAnimationFrame(tick);
   };
@@ -232,7 +271,140 @@ function stop(){
   try { current.src.stop(); } catch(_){}
   current = null;
   face.singing = false; face.vowel = null;
+  playheadEl.classList.remove('on');
   setSpeech(randomIdleLine());
+}
+
+/* ---------- 楽譜プレビュー(ピアノロール) ---------- */
+const keysCanvas  = document.getElementById('keysCanvas');
+const rollCanvas  = document.getElementById('rollCanvas');
+const rollScroll  = document.getElementById('rollScroll');
+const rollInner   = document.getElementById('rollInner');
+const playheadEl  = document.getElementById('playhead');
+const scoreMetaEl = document.getElementById('scoreMeta');
+const scoreEmptyEl= document.getElementById('scoreEmpty');
+const rollRowEl   = document.getElementById('rollRow');
+
+const PX16 = 20;    // 16分音符1つぶんの横幅(px)
+const ROWH = 15;    // 半音1つぶんの高さ(px)
+const KEYW = 42;    // 左の鍵盤ガター幅(px)
+const TOPPAD = 18, BOTPAD = 6;
+const NOTE_NAMES = ['ど','ど♯','れ','れ♯','み','ふぁ','ふぁ♯','そ','そ♯','ら','ら♯','し'];
+const isBlack = m => [1,3,6,8,10].includes(((m % 12) + 12) % 12);
+const COL = {ink:'#4a3f35', line:'#e8ddcf', black:'#f4ede1', beat:'#efe6d6', bar:'#e0d2bd',
+  noteFill:'#c7e6ff', noteEdge:'#5bb8f5', modFill:'#ffd6e4', modEdge:'#ff7aa2', barNum:'#b7a693'};
+
+let scoreLayout = null;   // 再生プレイヘッド用 {st}
+
+function setupCanvas(cv, cssW, cssH){
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return g;
+}
+function badge(t){ return '<span class="b">' + t + '</span>'; }
+function showScoreEmpty(msg){
+  rollRowEl.style.display = 'none';
+  scoreEmptyEl.style.display = 'block';
+  scoreEmptyEl.innerHTML = msg;
+  playheadEl.classList.remove('on');
+  scoreLayout = null;
+}
+
+function renderScore(){
+  let song;
+  try { song = Utau.parse(scoreEl.value); }
+  catch(_){ return; }   // 編集途中のエラーは楽譜側では前回表示を維持
+
+  if (song.mode === 'かたり'){
+    scoreMetaEl.innerHTML = badge('🌙 かたり') + badge('♩' + song.tempo) + badge(song.voice) + badge(song.style);
+    showScoreEmpty('🌙 かたりモードは<b>詩の朗読</b>だから楽譜はないよ<br>音符でうたわせるとピアノロールがでるよ');
+    return;
+  }
+  const notes = song.notes;
+  if (!notes.length){
+    scoreMetaEl.innerHTML = badge('♩' + song.tempo) + badge(song.voice) + badge(song.style);
+    showScoreEmpty('🎵 まだ音符がないよ<br>サンプルを押すか <code>ど4:き:4</code> のように書いてね');
+    return;
+  }
+
+  let minMidi = Infinity, maxMidi = -Infinity, totalUnits = 0;
+  for (const n of notes){
+    minMidi = Math.min(minMidi, n.midi); maxMidi = Math.max(maxMidi, n.midi);
+    totalUnits = Math.max(totalUnits, n.start + n.len);
+  }
+  minMidi -= 1; maxMidi += 1;
+  while (maxMidi - minMidi < 6){ maxMidi++; if (maxMidi - minMidi < 6) minMidi--; }  // 最低7段は確保
+
+  const height = TOPPAD + (maxMidi - minMidi + 1) * ROWH + BOTPAD;
+  const width  = Math.max(totalUnits, 16) * PX16 + 8;
+  const yOf = m => TOPPAD + (maxMidi - m) * ROWH;   // その音の行の上端
+  scoreLayout = {st: 60 / song.tempo / 4};
+
+  scoreEmptyEl.style.display = 'none';
+  rollRowEl.style.display = 'flex';
+  scoreMetaEl.innerHTML = badge('♩' + song.tempo) + badge(song.voice) + badge(song.style)
+    + badge(Math.ceil(totalUnits / 16) + '小節');
+
+  /* ---- 左の鍵盤ガター ---- */
+  const kg = setupCanvas(keysCanvas, KEYW, height);
+  kg.clearRect(0, 0, KEYW, height);
+  kg.textAlign = 'right'; kg.textBaseline = 'middle';
+  for (let m = maxMidi; m >= minMidi; m--){
+    const y = yOf(m), pc = ((m % 12) + 12) % 12;
+    if (isBlack(m)){ kg.fillStyle = COL.black; kg.fillRect(0, y, KEYW, ROWH); }
+    kg.strokeStyle = COL.line; kg.lineWidth = 1;
+    kg.beginPath(); kg.moveTo(0, y + ROWH + 0.5); kg.lineTo(KEYW, y + ROWH + 0.5); kg.stroke();
+    kg.fillStyle = isBlack(m) ? '#a99a86' : COL.ink;
+    kg.font = (pc === 0 ? 'bold ' : '') + '9px "Hiragino Maru Gothic ProN",sans-serif';
+    kg.fillText(NOTE_NAMES[pc] + (pc === 0 ? Math.floor(m / 12) - 1 : ''), KEYW - 4, y + ROWH / 2);
+  }
+  kg.strokeStyle = COL.line; kg.lineWidth = 2;
+  kg.beginPath(); kg.moveTo(KEYW - 1, 0); kg.lineTo(KEYW - 1, height); kg.stroke();
+
+  /* ---- ピアノロール本体 ---- */
+  rollInner.style.width = width + 'px';
+  const g = setupCanvas(rollCanvas, width, height);
+  g.clearRect(0, 0, width, height);
+  for (let m = maxMidi; m >= minMidi; m--)
+    if (isBlack(m)){ g.fillStyle = COL.black; g.fillRect(0, yOf(m), width, ROWH); }
+  g.strokeStyle = COL.line; g.lineWidth = 1;
+  for (let m = maxMidi; m >= minMidi - 1; m--){
+    const y = yOf(m) + ROWH + 0.5; g.beginPath(); g.moveTo(0, y); g.lineTo(width, y); g.stroke();
+  }
+  for (let u = 0; u <= totalUnits; u += 4){                 // 拍・小節線＋小節番号
+    const x = u * PX16 + 0.5, isBar = u % 16 === 0;
+    g.strokeStyle = isBar ? COL.bar : COL.beat; g.lineWidth = isBar ? 1.5 : 1;
+    g.beginPath(); g.moveTo(x, TOPPAD - (isBar ? 6 : 2)); g.lineTo(x, height - BOTPAD); g.stroke();
+    if (isBar){
+      g.fillStyle = COL.barNum; g.font = '9px ui-monospace,monospace';
+      g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(String(u / 16 + 1), x + 3, 2);
+    }
+  }
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const n of notes){                                    // 音符ブロック
+    const x = n.start * PX16, y = yOf(n.midi), w = Math.max(6, n.len * PX16 - 2), h = ROWH - 2;
+    const mod = n.mods && n.mods.length;
+    g.fillStyle = mod ? COL.modFill : COL.noteFill;
+    g.strokeStyle = mod ? COL.modEdge : COL.noteEdge; g.lineWidth = 1;
+    g.beginPath(); g.roundRect(x + 1, y + 1, w, h, 4); g.fill(); g.stroke();
+    g.fillStyle = COL.ink; g.font = '10px "Hiragino Maru Gothic ProN",sans-serif';
+    if (w >= 10) g.fillText(n.lyric, x + 1 + w / 2, y + 1 + h / 2 + 0.5);
+    if (mod){                                                // 調教記号を音符の左上に小さく
+      g.fillStyle = COL.modEdge; g.font = '8px ui-monospace,monospace';
+      g.textAlign = 'left'; g.textBaseline = 'bottom'; g.fillText(n.mods, x + 2, y + 1);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+    }
+  }
+}
+function updatePlayhead(t){
+  if (!scoreLayout) return;
+  const x = t / scoreLayout.st * PX16;
+  playheadEl.style.transform = 'translateX(' + x + 'px)';
+  const view = rollScroll.clientWidth;
+  if (x > rollScroll.scrollLeft + view * 0.7 || x < rollScroll.scrollLeft)
+    rollScroll.scrollLeft = Math.max(0, x - view * 0.4);
 }
 
 /* ---------- WAV / 共有 ---------- */
@@ -397,7 +569,7 @@ document.getElementById('btnStop').addEventListener('click', stop);
 document.getElementById('btnWav').addEventListener('click', exportWav);
 document.getElementById('btnUst').addEventListener('click', exportUst);
 document.getElementById('btnShare').addEventListener('click', shareLink);
-scoreEl.addEventListener('input', saveLocal);
+scoreEl.addEventListener('input', () => { saveLocal(); renderScore(); });
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' && document.activeElement !== scoreEl){
     e.preventDefault();
@@ -417,6 +589,7 @@ if (!loadFromHash()){
 }
 // 譜面から声を推定して顔を出しておく
 try { currentVoice = Utau.parse(scoreEl.value).voice; } catch(_){}
+renderScore();
 
 /* テスト用フック */
 window.__utaukun = {
