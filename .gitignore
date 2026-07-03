@@ -5,3 +5,6 @@
 teto-voicebank/
 *音源*/
 oto.ini
+
+# USTエクスポートの生成物(export-ust.js の出力)
+*.ust

@@ -1,6 +1,6 @@
 {
   "name": "utau-chan",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AIにたのむと、作曲・調教してキャラクターが歌う。テキスト譜面「うたテキスト」を、フォルマント合成(依存ゼロ)または実録音のUTAU音源で歌わせる、ちいさな歌声合成器。",
   "type": "commonjs",
   "main": "engine.js",
@@ -11,6 +11,7 @@
   "scripts": {
     "sing": "node sing.js",
     "sing:teto": "node singteto.js",
+    "export:ust": "node export-ust.js",
     "analyze": "node tools/analyze-teto.js",
     "smoke": "node sing.js songs/kirakira.uta -o /tmp/utau-smoke.wav && echo OK"
   },
@@ -18,6 +19,7 @@
     "engine.js",
     "sing.js",
     "singteto.js",
+    "export-ust.js",
     "index.html",
     "songs/",
     "tools/"

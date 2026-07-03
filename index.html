@@ -73,6 +73,7 @@
         <button id="btnPlay" class="primary">▶ うたう</button>
         <button id="btnStop">■ とめる</button>
         <button id="btnWav">⬇ WAV保存</button>
+        <button id="btnUst">📤 UST書き出し</button>
         <button id="btnShare">🔗 共有リンク</button>
       </div>
     </div>
@@ -247,6 +248,20 @@ function exportWav(){
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast('WAVにしたよ! ⬇');
 }
+function exportUst(){
+  const song = parseScore();
+  if (!song) return;
+  if (!song.notes.length){ toast(song.mode === 'かたり' ? 'かたりモードはUSTにできないよ' : 'うたう中身がないよ!'); return; }
+  let ust;
+  try { ust = Utau.toUst(song, {name: 'utaukun-song'}); }
+  catch(e){ toast(e.message); return; }
+  const url = URL.createObjectURL(new Blob([Utau.encodeSjis(ust)], {type:'application/octet-stream'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'utaukun-song.ust';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('USTにしたよ!本家UTAUでひらいてね 📤');
+}
 function shareLink(){
   if (!parseScore()) return;
   const b64 = btoa(unescape(encodeURIComponent(scoreEl.value)));
@@ -380,6 +395,7 @@ for (const [name, text] of Object.entries(EXAMPLES)){
 document.getElementById('btnPlay').addEventListener('click', play);
 document.getElementById('btnStop').addEventListener('click', stop);
 document.getElementById('btnWav').addEventListener('click', exportWav);
+document.getElementById('btnUst').addEventListener('click', exportUst);
 document.getElementById('btnShare').addEventListener('click', shareLink);
 scoreEl.addEventListener('input', saveLocal);
 document.addEventListener('keydown', e => {
