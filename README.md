@@ -136,7 +136,11 @@ songs/*.uta            サンプル譜面(調教スタイルのデモ含む)
 tools/analyze-teto.js  歌声の品質メトリクス測定(音程/ビブラート/クリック)
 docs/teto-changelog.md 重音テト調教の改善履歴(v1→v5)
 .claude/skills/run-utau/  起動用スキル(Claude Code から呼べるランブック)
+package.json           メタ情報 / npm scripts(sing・sing:teto・analyze・smoke)
 ```
+
+すべてルート実行のフラット構成です。`npm run sing`(= `node sing.js`)のように
+npm scripts からも呼べますが、従来どおり `node sing.js 譜面.uta` で直接動きます。
 
 ## しくみ
 
