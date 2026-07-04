@@ -95,6 +95,12 @@
         <button id="btnWav">⬇ WAV保存</button>
         <button id="btnUst">📤 UST書き出し</button>
         <button id="btnShare">🔗 共有リンク</button>
+        <label id="tetoToggle" title="読み込んだUTAU音源(重音テト等)の実録音で歌います" style="display:inline-flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="tetoOn" disabled> 🎤 UTAUで歌う
+        </label>
+        <button id="btnTetoLoad" type="button">📂 音源フォルダを読み込む</button>
+        <span id="tetoStatus" style="font-size:12px; color:#b7a693; align-self:center;"></span>
+        <input type="file" id="tetoDir" webkitdirectory directory multiple style="display:none;">
       </div>
     </div>
     <div class="card" id="scoreCard">
@@ -143,6 +149,7 @@
 <div id="toast"></div>
 
 <script src="engine.js"></script>
+<script src="teto-web.js"></script>
 <script>
 "use strict";
 
@@ -239,8 +246,17 @@ function play(){
   if (!song) return;
   currentVoice = song.voice;
   renderScore();
-  const {samples, duration, timeline} = Utau.render(song);
+  const r = Utau.render(song);
+  const timeline = r.timeline;
   if (!timeline.length){ toast('うたう中身がないよ!サンプルを押してみてね'); return; }
+  let samples = r.samples, duration = r.duration;
+  if (tetoEnabled() && song.notes.length && song.mode !== 'かたり'){
+    try {
+      const res = TetoBank.render(song, {vib:true, reverb:true});
+      samples = res.master; duration = res.master.length / Utau.SR;
+      if (res.missing.length) toast('UTAU音源にない音は代替/省略したよ: ' + res.missing.join(' '));
+    } catch(e){ toast('UTAU合成に失敗: ' + (e.message || e)); }
+  }
   const ctx = getCtx();
   const ab = ctx.createBuffer(1, samples.length, Utau.SR);
   ab.copyToChannel(samples, 0);
@@ -411,11 +427,16 @@ function updatePlayhead(t){
 function exportWav(){
   const song = parseScore();
   if (!song) return;
-  const {samples, timeline} = Utau.render(song);
-  if (!timeline.length){ toast('うたう中身がないよ!'); return; }
-  const url = URL.createObjectURL(new Blob([Utau.toWav(samples)], {type:'audio/wav'}));
+  const r = Utau.render(song);
+  if (!r.timeline.length){ toast('うたう中身がないよ!'); return; }
+  let wav = Utau.toWav(r.samples), fname = 'utaukun-song.wav';
+  if (tetoEnabled() && song.notes.length && song.mode !== 'かたり'){
+    try { wav = Utau.toWav(TetoBank.render(song, {vib:true, reverb:true}).master); fname = 'utaukun-utau.wav'; }
+    catch(e){ toast('UTAU合成に失敗: ' + (e.message || e)); }
+  }
+  const url = URL.createObjectURL(new Blob([wav], {type:'audio/wav'}));
   const a = document.createElement('a');
-  a.href = url; a.download = 'utaukun-song.wav';
+  a.href = url; a.download = fname;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast('WAVにしたよ! ⬇');
@@ -569,6 +590,34 @@ document.getElementById('btnStop').addEventListener('click', stop);
 document.getElementById('btnWav').addEventListener('click', exportWav);
 document.getElementById('btnUst').addEventListener('click', exportUst);
 document.getElementById('btnShare').addEventListener('click', shareLink);
+
+/* ---------- テト音源(UTAU実録音)の読み込み ---------- */
+const tetoOn = document.getElementById('tetoOn');
+const tetoDir = document.getElementById('tetoDir');
+const tetoStatusEl = document.getElementById('tetoStatus');
+function tetoEnabled(){ return tetoOn.checked && window.TetoBank && TetoBank.isReady(); }
+function setTetoStatus(info){
+  if (info){
+    tetoOn.disabled = false;
+    tetoStatusEl.textContent = `♪ ${info.name}(${info.vcv ? '連続音' : '単独音'}・${info.samples}音源)`;
+  } else {
+    tetoOn.disabled = true; tetoOn.checked = false;
+    tetoStatusEl.textContent = '';
+  }
+}
+document.getElementById('btnTetoLoad').addEventListener('click', () => tetoDir.click());
+tetoDir.addEventListener('change', async () => {
+  if (!tetoDir.files.length) return;
+  tetoStatusEl.textContent = '読み込み中…';
+  try {
+    const info = await TetoBank.loadFromFileList(tetoDir.files);
+    setTetoStatus(info); tetoOn.checked = true;
+    toast('UTAU音源を読み込んだよ!「🎤 UTAUで歌う」ON にしたよ 🎤');
+  } catch(e){ tetoStatusEl.textContent = ''; toast(e.message || '音源の読み込みに失敗したよ'); }
+  tetoDir.value = '';
+});
+if (window.TetoBank) TetoBank.restoreFromIDB().then(info => { if (info) setTetoStatus(info); });
+
 scoreEl.addEventListener('input', () => { saveLocal(); renderScore(); });
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' && document.activeElement !== scoreEl){
