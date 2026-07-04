@@ -6,46 +6,13 @@
 <title>うたうちゃん — AIが書いた譜面テキストを歌うプレイヤー</title>
 <meta name="description" content="テキストで書いた譜面(調教記号つき)をボカロ風の合成音声で歌うプレイヤー。AIに譜面を書かせて貼るだけ。インストール不要・WAV保存・共有リンク対応。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♪</text></svg>">
+<link rel="stylesheet" href="theme.css">
 <style>
-  /* ---- Windows 97風クラシックテーマ + ターミナル質感 ---- */
-  :root{ --desk:#008080; --face:#c0c0c0; --dark:#404040; --mid:#808080; --hi:#fff;
-    --title1:#000080; --title2:#1084d0; --term-bg:#000; --term-fg:#33ff33; --ink:#000; }
-  *{box-sizing:border-box; border-radius:0 !important;}
-  body{ margin:0; background:var(--desk); color:var(--ink); font-size:13px;
-    font-family:"MS UI Gothic","MS PGothic","ＭＳ Ｐゴシック",Osaka,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif; }
-  header{padding:12px 16px 2px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
-    color:#fff; text-shadow:1px 1px 0 #004040;}
-  header h1{margin:0; font-size:22px; letter-spacing:2px; font-weight:bold;}
-  header .tagline{font-size:12px; opacity:.9;}
-  /* ページ切り替えタブ(Win97のプロパティシート風) */
-  #tabs{display:flex; align-items:flex-end; padding:10px 16px 0; position:relative; z-index:1;}
-  .tab{ display:inline-block; text-decoration:none; color:var(--ink); font-size:13px;
-    background:#a8a8a8; padding:5px 20px 6px; margin-right:2px; position:relative; top:2px;
-    border:2px solid; border-color:var(--hi) var(--dark) transparent var(--hi);}
-  .tab.active{ background:var(--face); font-weight:bold; top:0; padding-bottom:9px; z-index:2;}
-  .tab:not(.active):hover{background:#b8b8b8;}
-  main{display:flex; gap:12px; padding:10px 16px 26px; align-items:flex-start; flex-wrap:wrap;
-    border-top:2px solid var(--hi); background:rgba(192,192,192,.12); margin-top:-2px;}
-  /* ウィンドウ(タイトルバーはdata-title属性から生成) */
-  .card{ position:relative; background:var(--face); padding:36px 10px 10px;
-    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
-    box-shadow:1px 1px 0 #000;}
-  .card::before{ content:attr(data-title); position:absolute; left:3px; right:3px; top:3px;
-    height:22px; line-height:22px; padding:0 6px; overflow:hidden; white-space:nowrap;
-    background:linear-gradient(90deg,var(--title1),var(--title2)); color:#fff;
-    font-weight:bold; font-size:12px; letter-spacing:1px;}
-  .card::after{ content:"— ▢ ✕"; position:absolute; top:3px; right:6px; height:22px; line-height:22px;
-    color:#fff; font-size:10px; letter-spacing:4px; pointer-events:none;}
+  /* うたうちゃん固有レイアウト(共通テーマは theme.css) */
   #left{width:264px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
-  /* ジャケット画像(好きな画像を設定できる) */
   #coverBox{width:100%; height:200px; background:var(--term-bg); overflow:hidden;
     border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);
     display:flex; align-items:center; justify-content:center;}
-  #coverImg{max-width:100%; max-height:100%; display:none;}
-  #coverEmpty{color:var(--term-fg); font-size:12px; text-align:center; line-height:2;
-    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
-  #coverBtns{display:flex; gap:6px; margin-top:8px;}
-  #coverBtns button{flex:1; padding:4px 6px; font-size:12px;}
   /* テト音源(UTAU音源フォルダ)ローダー */
   #tetoStatus{margin-top:8px; padding:5px 6px; min-height:36px; font-size:11px; line-height:1.7;
     background:var(--term-bg); color:var(--term-fg); word-break:break-all;
@@ -53,38 +20,10 @@
     border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);}
   #tetoBtns{display:flex; gap:6px; margin-top:8px;}
   #tetoBtns button{flex:1; padding:4px 6px; font-size:12px;}
-  #tetoBtns button:disabled{color:#808080; text-shadow:1px 1px 0 #fff; cursor:default;}
   .tetoNote{font-size:11px; line-height:1.7; color:#444; margin-top:6px;}
-  #speech{min-height:28px; text-align:center; font-size:13px; color:#000080; margin-top:8px;
-    background:var(--face); border:1px solid; border-color:var(--mid) var(--hi) var(--hi) var(--mid); padding:3px 4px;}
+  #speech{min-height:28px;}
   #right{flex:1; min-width:340px; display:flex; flex-direction:column; gap:12px;}
-  #score{ width:100%; height:280px; font-size:13px; line-height:1.7; padding:8px; resize:vertical;
-    font-family:"MS Gothic","Osaka-Mono",ui-monospace,Consolas,monospace;
-    background:var(--term-bg); color:var(--term-fg); caret-color:var(--term-fg);
-    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);}
-  #buttons{display:flex; gap:8px; flex-wrap:wrap;}
-  button{ font-family:inherit; font-size:13px; color:var(--ink); background:var(--face);
-    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
-    padding:6px 14px; cursor:pointer; box-shadow:1px 1px 0 #000;}
-  button:active{border-color:var(--dark) var(--hi) var(--hi) var(--dark); box-shadow:none;}
-  button.primary{font-weight:bold;}
-  .chips{display:flex; gap:6px; flex-wrap:wrap;}
-  .chips button{padding:3px 9px; font-size:12px;}
-  #err{color:#a00000; font-size:12px; white-space:pre-wrap; margin-top:6px; min-height:0;
-    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
-  .hint{font-size:12px; line-height:1.9; color:#222;}
-  .hint code{background:var(--term-bg); color:var(--term-fg); padding:1px 5px; font-size:11px;
-    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
-  .hint b{color:#000080;}
-  #toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(90px);
-    background:var(--face); color:var(--ink); padding:8px 20px; font-size:13px;
-    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
-    box-shadow:2px 2px 0 #000; transition:transform .25s; z-index:99; pointer-events:none;}
-  #toast.show{transform:translateX(-50%) translateY(0);}
-  footer{padding:0 16px 36px; font-size:12px; color:#d8f0f0; line-height:1.8;}
-  footer code{background:var(--term-bg); color:var(--term-fg); padding:1px 5px;
-    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
-  input[type=range]{accent-color:#000080;}
+  #score{height:280px;}
   /* ---- 楽譜プレビュー(ターミナル調ピアノロール) ---- */
   #scoreCard{padding:36px 10px 8px;}
   #scoreHead{display:flex; align-items:baseline; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
@@ -215,6 +154,7 @@
 
 <script src="engine.js"></script>
 <script src="tetoengine.js"></script>
+<script src="ui.js"></script>
 <script>
 "use strict";
 
@@ -368,14 +308,7 @@ const COL = {ink:'#33ff33', line:'#262626', black:'#141414', beat:'#1e1e1e', bar
 
 let scoreLayout = null;   // 再生プレイヘッド用 {st}
 
-function setupCanvas(cv, cssW, cssH){
-  const dpr = window.devicePixelRatio || 1;
-  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
-  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
-  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return g;
-}
-function badge(t){ return '<span class="b">' + t + '</span>'; }
+/* setupCanvas() / badge() は ui.js を参照 */
 function showScoreEmpty(msg){
   rollRowEl.style.display = 'none';
   scoreEmptyEl.style.display = 'block';
@@ -524,53 +457,7 @@ function loadFromHash(){
   } catch(_){ return false; }
 }
 
-/* ---------- ジャケット画像(好きな画像を設定・localStorageに保存) ---------- */
-const coverImg = document.getElementById('coverImg');
-const coverEmpty = document.getElementById('coverEmpty');
-const coverFile = document.getElementById('coverFile');
-const COVER_KEY = 'utauchan-cover';   // うたうちゃん/バンドちゃんで共有
-function showCover(dataUrl){
-  if (dataUrl){
-    coverImg.src = dataUrl;
-    coverImg.style.display = 'block';
-    coverEmpty.style.display = 'none';
-  } else {
-    coverImg.removeAttribute('src');
-    coverImg.style.display = 'none';
-    coverEmpty.style.display = 'block';
-  }
-}
-function setCoverFromFile(file){
-  const reader = new FileReader();
-  reader.onload = () => {
-    // localStorageに収まるよう縮小して保存(長辺512px)
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, 512 / Math.max(img.width, img.height));
-      const cv = document.createElement('canvas');
-      cv.width = Math.max(1, Math.round(img.width * scale));
-      cv.height = Math.max(1, Math.round(img.height * scale));
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      const dataUrl = cv.toDataURL('image/jpeg', 0.85);
-      try { localStorage.setItem(COVER_KEY, dataUrl); } catch(_){ toast('画像が大きすぎて保存できなかったよ'); }
-      showCover(dataUrl);
-      toast('画像をせっていしたよ');
-    };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-document.getElementById('btnCover').addEventListener('click', () => coverFile.click());
-coverFile.addEventListener('change', () => {
-  if (coverFile.files && coverFile.files[0]) setCoverFromFile(coverFile.files[0]);
-  coverFile.value = '';
-});
-document.getElementById('btnCoverClear').addEventListener('click', () => {
-  try { localStorage.removeItem(COVER_KEY); } catch(_){}
-  showCover(null);
-  toast('画像をはずしたよ');
-});
-try { showCover(localStorage.getItem(COVER_KEY) || localStorage.getItem('utaukun-cover')); } catch(_){ showCover(null); }
+/* ジャケット画像(showCover/setCoverFromFile とボタン配線)は ui.js を参照 */
 
 /* ---------- テト音源(UTAU音源フォルダ)をよみこんで実録音でうたう ---------- */
 let tetoBank = null;   // {oto, files: Map<oto基準の相対名, File>, label}
@@ -721,14 +608,7 @@ if (window.indexedDB) restoreTetoBank();
 
 const IDLE_LINES = ['うたいたいなあ…', '譜面をはってね!', 'AIに作曲たのんでみて♪', 'きょうもいいこえ!', 'れんしゅうちゅう…らら〜♪'];
 function randomIdleLine(){ return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]; }
-function setSpeech(s){ document.getElementById('speech').textContent = s; }
-function toast(msg){
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 2200);
-}
+/* setSpeech() / toast() は ui.js を参照 */
 
 /* ---------- 配線 ---------- */
 const exWrap = document.getElementById('examples');
