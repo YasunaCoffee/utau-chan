@@ -57,13 +57,33 @@ function parseOto(text) {
 }
 
 // かな + 直前の母音(a/i/u/e/o/n/-) → oto レコード
+// 単独音と連続音をマージしたmap(重音テト標準の同梱構成)にも対応:
+// 連続音「a か」を優先し、無ければ単独音「か」で補う。
 function resolveAlias(oto, kana, prevV) {
   if (oto.vcv) {
     return oto.map.get(`${prevV} ${kana}`) || oto.map.get(`- ${kana}`)
+      || oto.map.get(kana)                                   // 単独音(CV)フォールバック
       // 語頭で「- き」が無い音源向け: 母音付きを借りる(先頭母音は buildNote で切る)
       || ['a', 'e', 'o', 'u', 'i', 'n'].map(v => oto.map.get(`${v} ${kana}`)).find(Boolean) || null;
   }
   return oto.map.get(kana) || oto.map.get(`- ${kana}`) || oto.map.get(`* ${kana}`) || null;
+}
+
+/* ---- 複数のoto.iniをひとつの音源にマージ ----
+ * 重音テトの標準配布は「単独音」「連続音」(さらに音階別サブフォルダのことも)が
+ * まとめて入っている。partsは [{dir, oto}] (dirはWAVファイル名に付ける前置きパス)。
+ * 連続音(VCV)を先勝ちで優先し、単独音(CV)のエイリアスで穴を埋める。 */
+function mergeOto(parts) {
+  const sorted = [...parts].sort((a, b) => (b.oto.vcv ? 1 : 0) - (a.oto.vcv ? 1 : 0));
+  const map = new Map();
+  let vcv = false, nVcv = 0, nCv = 0;
+  for (const p of sorted) {
+    if (p.oto.vcv) { vcv = true; nVcv++; } else nCv++;
+    for (const [alias, rec] of p.oto.map) {
+      if (!map.has(alias)) map.set(alias, Object.assign({}, rec, {file: (p.dir || '') + rec.file}));
+    }
+  }
+  return {map, vcv, nVcv, nCv};
 }
 
 /* ---- WAV(16bit PCM)を読む: ArrayBuffer → Float32Array(ch0) ---- */
@@ -323,5 +343,5 @@ async function render(song, bank, opts = {}) {
   return {samples: master, duration: totalSec, timeline, placed, missing: [...missing], vcv: oto.vcv};
 }
 
-return {SR, parseOto, resolveAlias, decodeWav, render};
+return {SR, parseOto, mergeOto, resolveAlias, decodeWav, render};
 });

@@ -587,29 +587,32 @@ async function loadTetoBank(fileList){
     tetoStatusEl.textContent = 'ERROR: oto.ini が見つからないよ(音源フォルダごと選んでね)';
     return;
   }
-  // 連続音 > 単独音 > その他 の順で優先
-  const rank = f => {
-    const p = f.webkitRelativePath || f.name;
-    return p.includes('連続音') ? 2 : p.includes('単独音') ? 1 : 0;
-  };
-  otos.sort((a, b) => rank(b) - rank(a));
-  const otoFile = otos[0];
-  const rel = otoFile.webkitRelativePath || otoFile.name;
-  const dir = rel.slice(0, rel.length - otoFile.name.length);   // oto.iniのあるフォルダ(前方一致キー)
-  const text = new TextDecoder('shift_jis').decode(await otoFile.arrayBuffer());
-  const oto = Teto.parseOto(text);
-  if (!oto.map.size){
+  // テトの標準配布は「単独音」「連続音」がまとめて入っている。
+  // 見つかった oto.ini を全部読み、連続音優先+単独音フォールバックでマージする。
+  const parts = [];
+  for (const otoFile of otos){
+    const rel = otoFile.webkitRelativePath || otoFile.name;
+    const dir = rel.slice(0, rel.length - otoFile.name.length);   // このoto.iniのフォルダ
+    const text = new TextDecoder('shift_jis').decode(await otoFile.arrayBuffer());
+    const oto = Teto.parseOto(text);
+    if (oto.map.size) parts.push({dir, oto});
+  }
+  if (!parts.length){
     tetoStatusEl.textContent = 'ERROR: oto.ini がよめなかったよ';
     return;
   }
+  const merged = Teto.mergeOto(parts);
+  // WAVは選択フォルダ基準の相対パスで引く(マージ時にrec.fileへ各dirを前置き済み)
   const map = new Map();
   for (const f of files){
-    const r = f.webkitRelativePath || f.name;
-    if (r.startsWith(dir) && /\.wav$/i.test(f.name)) map.set(r.slice(dir.length), f);
+    if (/\.wav$/i.test(f.name)) map.set(f.webkitRelativePath || f.name, f);
   }
-  const label = dir.replace(/\/$/, '').split('/').pop() || 'UTAU音源';
-  tetoBank = {oto, files: map, label};
-  tetoStatusEl.textContent = `音源: ${label}\n${oto.vcv ? '連続音VCV' : '単独音CV'} / エイリアス${oto.map.size} / WAV ${map.size}個`;
+  const first = files[0].webkitRelativePath || files[0].name;
+  const label = first.includes('/') ? first.split('/')[0] : 'UTAU音源';
+  tetoBank = {oto: merged, files: map, label};
+  const kinds = [merged.nVcv ? `連続音VCV×${merged.nVcv}` : '', merged.nCv ? `単独音CV×${merged.nCv}` : '']
+    .filter(Boolean).join(' + ');
+  tetoStatusEl.textContent = `音源: ${label}\n${kinds} / エイリアス${merged.map.size} / WAV ${map.size}個`;
   btnTetoPlay.disabled = false;
   btnTetoWav.disabled = false;
   toast('テト音源をよみこんだよ');
