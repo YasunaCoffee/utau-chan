@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🎛 バンドちゃん — うたうちゃんのライブシンセ</title>
+<title>バンドちゃん — うたうちゃんのライブシンセ</title>
 <meta name="description" content="Strudel風のライブコーディング・シンセサイザー。テキストでドラム・ベース・コード・リード・うたを書いて、その場で演奏。差し替え・WAV保存・共有リンク対応。">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♫</text></svg>">
 <style>
   /* ---- Windows 97風クラシックテーマ + ターミナル質感 ---- */
   :root{ --desk:#008080; --face:#c0c0c0; --dark:#404040; --mid:#808080; --hi:#fff;
@@ -29,8 +29,16 @@
   .card::after{ content:"— ▢ ✕"; position:absolute; top:3px; right:6px; height:22px; line-height:22px;
     color:#fff; font-size:10px; letter-spacing:4px; pointer-events:none;}
   #left{width:240px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
-  #faceCanvas{display:block; margin:0 auto;}
-  #speech{min-height:26px; text-align:center; font-size:12px; color:#000080; margin-top:4px;
+  /* ジャケット画像(好きな画像を設定できる) */
+  #coverBox{width:100%; height:180px; background:var(--term-bg); overflow:hidden;
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);
+    display:flex; align-items:center; justify-content:center;}
+  #coverImg{max-width:100%; max-height:100%; display:none;}
+  #coverEmpty{color:var(--term-fg); font-size:12px; text-align:center; line-height:2;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  #coverBtns{display:flex; gap:6px; margin-top:8px;}
+  #coverBtns button{flex:1; padding:4px 6px; font-size:12px;}
+  #speech{min-height:26px; text-align:center; font-size:12px; color:#000080; margin-top:8px;
     background:var(--face); border:1px solid; border-color:var(--mid) var(--hi) var(--hi) var(--mid); padding:3px 4px;}
   #right{flex:1; min-width:380px; display:flex; flex-direction:column; gap:12px;}
   #score{ width:100%; height:220px; font-size:13px; line-height:1.7; padding:8px; resize:vertical;
@@ -90,20 +98,28 @@
 <body>
 
 <header>
-  <h1>🎛 バンドちゃん — うたうちゃんのライブシンセ</h1>
+  <h1>バンドちゃん — うたうちゃんのライブシンセ</h1>
   <span class="tagline">バンドテキストを書くとその場で演奏。Ctrl+Enterで差し替え(Strudel風ライブコーディング)</span>
 </header>
 
 <main>
   <div id="left">
-    <div class="card" data-title="うたうちゃん.exe">
-      <canvas id="faceCanvas" width="210" height="180"></canvas>
+    <div class="card" data-title="JACKET.BMP — ジャケット画像">
+      <div id="coverBox">
+        <img id="coverImg" alt="ジャケット画像">
+        <div id="coverEmpty">NO IMAGE<br>すきな画像を<br>せっていしてね</div>
+      </div>
+      <div id="coverBtns">
+        <button id="btnCover">画像をえらぶ…</button>
+        <button id="btnCoverClear">はずす</button>
+      </div>
+      <input type="file" id="coverFile" accept="image/*" hidden>
       <div id="speech">…</div>
     </div>
     <div class="card hint" data-title="あそびかた.txt">
-      <b>🤖 あそびかた</b><br>
+      <b>あそびかた</b><br>
       「<b>バンドテキストでシティポップ風の8小節書いて</b>」とAIにたのむ→貼る→▶<br><br>
-      ▶で演奏、編集して<b>✎ 差し替え</b>(またはCtrl+Enter)で次の小節から鳴り変わるよ。
+      ▶で演奏、編集して<b>差し替え</b>(またはCtrl+Enter)で次の小節から鳴り変わるよ。
     </div>
   </div>
 
@@ -115,9 +131,9 @@
       <div id="buttons" style="margin-top:10px;">
         <button id="btnPlay" class="primary">▶ えんそう</button>
         <button id="btnStop">■ とめる</button>
-        <button id="btnApply">✎ 差し替え</button>
-        <button id="btnWav">⬇ WAV保存</button>
-        <button id="btnShare">🔗 共有リンク</button>
+        <button id="btnApply">差し替え</button>
+        <button id="btnWav">WAV保存</button>
+        <button id="btnShare">共有リンク</button>
       </div>
       <div id="tempoRow" style="margin-top:10px;">
         <span>♩ テンポ</span>
@@ -141,7 +157,7 @@
     </div>
 
     <div class="card hint" id="howto" data-title="かきかた.hlp">
-      <b>📝 バンドテキストのかきかた</b><br>
+      <b>バンドテキストのかきかた</b><br>
       <code>@tempo 120</code> テンポ(省略時100) ／ <code>@swing 0.1</code> スウィング(0〜0.3) ／
       <code>@voice うたこ</code> <code>@style ふつう</code>([うた]用)<br>
       <code>[ドラム]</code> 1文字=16分音符: <code>ど</code>キック <code>た</code>スネア <code>つ</code>閉ハット
@@ -168,14 +184,14 @@
 
 /* ---------- サンプル曲(songs/*.band と同じ内容) ---------- */
 const EXAMPLES = {
-  '⚡ テクノ風': `# テクノ風(バンドちゃんサンプル)
+  'テクノ風': `# テクノ風(バンドちゃんサンプル)
 @tempo 128
 @swing 0
 
 [ドラム] どつたつ どつたち | どつたつ ぱつたち | どつたつ どつたち | どつたつ ぱつたち
 [ベース] ど2:4 ど2:4 ら1:4 そ1:4 | ど2:4 ど2:4 ふぁ1:4 そ1:4
 [コード] Am:16 | F:16 | C:16 | G:16`,
-  '🎧 ポップス風': `# ポップス風(バンドちゃんサンプル)
+  'ポップス風': `# ポップス風(バンドちゃんサンプル)
 @tempo 112
 @swing 0.08
 
@@ -183,7 +199,7 @@ const EXAMPLES = {
 [コード] C:16 G:16 | Am:16 F:16
 [ベース] ど3:4 ・:4 そ2:4 ・:4 | ら2:4 ・:4 ふぁ2:4 ・:4
 [リード] み4:4 そ4:4 ら4:4 そ4:4 | ふぁ4:4 み4:4 れ4:4 ど4:4`,
-  '🌙 うた入りバラード': `# うた入りバラード(バンドちゃんサンプル)
+  'うた入りバラード': `# うた入りバラード(バンドちゃんサンプル)
 @tempo 76
 @voice うたこ
 @style ふつう
@@ -199,8 +215,6 @@ const errEl = document.getElementById('err');
 const player = Band.createPlayer();
 let currentSong = null;      // 直近のパース成功結果
 let mixerState = {};         // トラック名 -> {muted, volume}
-let uiPulse = 0;             // かお用: 直近ステップのビート強さ
-let uiSinging = false;       // かお用: [うた]の音符が今鳴っているか
 
 function parseScore() {
   errEl.textContent = '';
@@ -227,7 +241,7 @@ function doPlay() {
   refreshMixerToPlayer();
   renderMixer(song);
   renderGridMeta(song);
-  toast('えんそう開始! 🎶');
+  toast('えんそう開始!');
 }
 function doStop() {
   player.stop();
@@ -245,7 +259,7 @@ function doApply() {
   }
   renderMixer(song);
   renderGridMeta(song);
-  toast('次の小節から差し替わるよ ✎');
+  toast('次の小節から差し替わるよ');
 }
 async function doWav() {
   const song = parseScore();
@@ -258,7 +272,7 @@ async function doWav() {
     a.href = url; a.download = 'bandchan-song.wav';
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('WAVにしたよ! ⬇');
+    toast('WAVにしたよ!');
   } catch (e) {
     toast(e.message);
   }
@@ -267,7 +281,7 @@ function doShare() {
   if (!parseScore()) { toast('譜面がよめないよ…'); return; }
   const url = location.origin + location.pathname + '#b=' + encodeURIComponent(scoreEl.value);
   (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
-    .then(() => toast('リンクをコピーしたよ! 🔗'))
+    .then(() => toast('リンクをコピーしたよ!'))
     .catch(() => prompt('このリンクをコピーしてね', url));
 }
 function loadFromHash() {
@@ -305,11 +319,11 @@ function renderMixer(song) {
     label.textContent = name;
     const muteBtn = document.createElement('button');
     muteBtn.className = 'mute' + (st.muted ? ' on' : '');
-    muteBtn.textContent = st.muted ? '🔇' : '🔈';
+    muteBtn.textContent = st.muted ? 'ミュート中' : 'ミュート';
     muteBtn.addEventListener('click', () => {
       st.muted = !st.muted;
       muteBtn.classList.toggle('on', st.muted);
-      muteBtn.textContent = st.muted ? '🔇' : '🔈';
+      muteBtn.textContent = st.muted ? 'ミュート中' : 'ミュート';
       player.setMute(name, st.muted);
     });
     const vol = document.createElement('input');
@@ -378,7 +392,7 @@ function drawGrid(song) {
   if (!names.length) {
     gridCanvas.style.display = 'none';
     gridEmptyEl.style.display = 'block';
-    gridEmptyEl.innerHTML = '🎵 まだトラックがないよ<br>サンプルを押すか [ドラム] などを書いてね';
+    gridEmptyEl.innerHTML = '♪ まだトラックがないよ<br>サンプルを押すか [ドラム] などを書いてね';
     return;
   }
   gridCanvas.style.display = 'block';
@@ -417,7 +431,7 @@ function drawGrid(song) {
   });
 }
 
-/* ---------- onStepコールバック(演奏中のグリッド更新+かお) ---------- */
+/* ---------- onStepコールバック(演奏中のグリッド更新) ---------- */
 player.onStep((step, bar) => {
   const song = player.getSong();
   if (!song) return;
@@ -430,51 +444,55 @@ player.onStep((step, bar) => {
   gridMetaEl.innerHTML = badge('♩' + song.tempo) + badge('小節 ' + ((barOffset % bars) + 1) + '/' + bars) +
     (song.swing ? badge('スウィング ' + song.swing) : '');
   drawGrid(song);
-  uiPulse = 1;
-  const utaTrack = song.tracks['うた'];
-  uiSinging = !!(utaTrack && trackSoundingAt(utaTrack, step));
 });
 
-/* ---------- かお(簡易版。ビートに合わせて頭が上下、[うた]中は口パク) ---------- */
-const faceCanvas = document.getElementById('faceCanvas');
-function drawFace(now) {
-  const c = faceCanvas.getContext('2d');
-  const W = faceCanvas.width, H = faceCanvas.height;
-  c.clearRect(0, 0, W, H);
-  uiPulse = Math.max(0, uiPulse - 0.05);
-  const playing = player.isPlaying();
-  const bob = playing ? uiPulse * 6 : Math.sin(now / 900) * 1.5;
-  const cx = W / 2, cy = H / 2 + 4 + bob;
-  c.fillStyle = '#ffe0e9'; c.strokeStyle = '#e8a3b8'; c.lineWidth = 4;
-  c.beginPath(); c.arc(cx, cy, 56, 0, 7); c.fill(); c.stroke();
-  // ほっぺ
-  c.fillStyle = 'rgba(255,122,162,.35)';
-  c.beginPath(); c.arc(cx - 34, cy + 12, 9, 0, 7); c.fill();
-  c.beginPath(); c.arc(cx + 34, cy + 12, 9, 0, 7); c.fill();
-  // 目
-  const eo = 22, ey = cy - 10;
-  for (const s of [-1, 1]) {
-    c.fillStyle = '#4a3f35';
-    c.beginPath(); c.ellipse(cx + s * eo, ey, 6, 8, 0, 0, 7); c.fill();
-    c.fillStyle = '#fff'; c.beginPath(); c.arc(cx + s * eo - 2, ey - 2, 2, 0, 7); c.fill();
-  }
-  // 口(演奏中で[うた]が鳴っていればパクパク、それ以外はにこにこ/棒読み)
-  const my = cy + 22;
-  c.fillStyle = '#b03a48';
-  c.beginPath();
-  if (playing && uiSinging) {
-    const open = (Math.sin(now / 90) + 1) / 2;
-    c.ellipse(cx, my, 12, 4 + open * 8, 0, 0, 7); c.fill();
-  } else if (playing) {
-    c.strokeStyle = '#4a3f35'; c.lineWidth = 3;
-    c.arc(cx, my - 4, 9, 0.2, Math.PI - 0.2); c.stroke();
+/* ---------- ジャケット画像(好きな画像を設定・localStorageに保存) ---------- */
+const coverImg = document.getElementById('coverImg');
+const coverEmpty = document.getElementById('coverEmpty');
+const coverFile = document.getElementById('coverFile');
+const COVER_KEY = 'bandchan-cover';
+function showCover(dataUrl) {
+  if (dataUrl) {
+    coverImg.src = dataUrl;
+    coverImg.style.display = 'block';
+    coverEmpty.style.display = 'none';
   } else {
-    c.strokeStyle = '#4a3f35'; c.lineWidth = 3;
-    c.moveTo(cx - 8, my); c.lineTo(cx + 8, my); c.stroke();
+    coverImg.removeAttribute('src');
+    coverImg.style.display = 'none';
+    coverEmpty.style.display = 'block';
   }
-  requestAnimationFrame(drawFace);
 }
-requestAnimationFrame(drawFace);
+function setCoverFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    // localStorageに収まるよう縮小して保存(長辺512px)
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 512 / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(img.width * scale));
+      cv.height = Math.max(1, Math.round(img.height * scale));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+      try { localStorage.setItem(COVER_KEY, dataUrl); } catch (_) { toast('画像が大きすぎて保存できなかったよ'); }
+      showCover(dataUrl);
+      toast('画像をせっていしたよ');
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+document.getElementById('btnCover').addEventListener('click', () => coverFile.click());
+coverFile.addEventListener('change', () => {
+  if (coverFile.files && coverFile.files[0]) setCoverFromFile(coverFile.files[0]);
+  coverFile.value = '';
+});
+document.getElementById('btnCoverClear').addEventListener('click', () => {
+  try { localStorage.removeItem(COVER_KEY); } catch (_) {}
+  showCover(null);
+  toast('画像をはずしたよ');
+});
+try { showCover(localStorage.getItem(COVER_KEY)); } catch (_) { showCover(null); }
 function setSpeech(s) { document.getElementById('speech').textContent = s; }
 
 /* ---------- toast ---------- */
@@ -520,7 +538,7 @@ function saveLocal() {
 if (!loadFromHash()) {
   let saved = null;
   try { saved = localStorage.getItem('bandchan-score'); } catch (_) {}
-  scoreEl.value = saved || EXAMPLES['⚡ テクノ風'];
+  scoreEl.value = saved || EXAMPLES['テクノ風'];
 }
 setSpeech('バンドテキストを書いて▶をおしてね');
 const initSong = parseScore();

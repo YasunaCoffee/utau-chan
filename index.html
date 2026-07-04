@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>うたうちゃん 🎤 — AIが書いた譜面テキストを歌うプレイヤー</title>
+<title>うたうちゃん — AIが書いた譜面テキストを歌うプレイヤー</title>
 <meta name="description" content="テキストで書いた譜面(調教記号つき)をボカロ風の合成音声で歌うプレイヤー。AIに譜面を書かせて貼るだけ。インストール不要・WAV保存・共有リンク対応。">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎤</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♪</text></svg>">
 <style>
   /* ---- Windows 97風クラシックテーマ + ターミナル質感 ---- */
   :root{ --desk:#008080; --face:#c0c0c0; --dark:#404040; --mid:#808080; --hi:#fff;
@@ -29,8 +29,16 @@
   .card::after{ content:"— ▢ ✕"; position:absolute; top:3px; right:6px; height:22px; line-height:22px;
     color:#fff; font-size:10px; letter-spacing:4px; pointer-events:none;}
   #left{width:264px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
-  #faceCanvas{display:block; margin:0 auto;}
-  #speech{min-height:28px; text-align:center; font-size:13px; color:#000080; margin-top:4px;
+  /* ジャケット画像(好きな画像を設定できる) */
+  #coverBox{width:100%; height:200px; background:var(--term-bg); overflow:hidden;
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);
+    display:flex; align-items:center; justify-content:center;}
+  #coverImg{max-width:100%; max-height:100%; display:none;}
+  #coverEmpty{color:var(--term-fg); font-size:12px; text-align:center; line-height:2;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  #coverBtns{display:flex; gap:6px; margin-top:8px;}
+  #coverBtns button{flex:1; padding:4px 6px; font-size:12px;}
+  #speech{min-height:28px; text-align:center; font-size:13px; color:#000080; margin-top:8px;
     background:var(--face); border:1px solid; border-color:var(--mid) var(--hi) var(--hi) var(--mid); padding:3px 4px;}
   #right{flex:1; min-width:340px; display:flex; flex-direction:column; gap:12px;}
   #score{ width:100%; height:280px; font-size:13px; line-height:1.7; padding:8px; resize:vertical;
@@ -85,22 +93,30 @@
 <body>
 
 <header>
-  <h1>🎤 うたうちゃん</h1>
+  <h1>うたうちゃん</h1>
   <span class="tagline">譜面テキストを貼ると歌ってくれるよ — AIに作曲・調教をたのんでね</span>
 </header>
 
 <main>
   <div id="left">
-    <div class="card" data-title="うたうちゃん.exe">
-      <canvas id="faceCanvas" width="230" height="195"></canvas>
+    <div class="card" data-title="JACKET.BMP — ジャケット画像">
+      <div id="coverBox">
+        <img id="coverImg" alt="ジャケット画像">
+        <div id="coverEmpty">NO IMAGE<br>すきな画像を<br>せっていしてね</div>
+      </div>
+      <div id="coverBtns">
+        <button id="btnCover">画像をえらぶ…</button>
+        <button id="btnCoverClear">はずす</button>
+      </div>
+      <input type="file" id="coverFile" accept="image/*" hidden>
       <div id="speech">…</div>
     </div>
     <div class="card hint" data-title="あそびかた.txt">
-      <b>🤖 あそびかた(AI編)</b><br>
+      <b>あそびかた(AI編)</b><br>
       ChatGPTやClaudeにこのページの「かきかた」を見せて、<br>
       「<b>ねこのテーマで1曲、こぶし多めで調教して</b>」<br>
       のようにたのむ → 返ってきた譜面を貼る → ▶<br><br>
-      <b>🧑 あそびかた(人間編)</b><br>
+      <b>あそびかた(人間編)</b><br>
       下のサンプルを押して▶をおすだけ。<br>
       共有リンクで曲をともだちに送れるよ。
     </div>
@@ -114,14 +130,14 @@
       <div id="buttons" style="margin-top:10px;">
         <button id="btnPlay" class="primary">▶ うたう</button>
         <button id="btnStop">■ とめる</button>
-        <button id="btnWav">⬇ WAV保存</button>
-        <button id="btnUst">📤 UST書き出し</button>
-        <button id="btnShare">🔗 共有リンク</button>
+        <button id="btnWav">WAV保存</button>
+        <button id="btnUst">UST書き出し</button>
+        <button id="btnShare">共有リンク</button>
       </div>
     </div>
     <div class="card" id="scoreCard" data-title="PIANOROLL.EXE — 楽譜ビューア">
       <div id="scoreHead">
-        <span class="scoreTitle">🎼 楽譜</span>
+        <span class="scoreTitle">楽譜</span>
         <span id="scoreMeta"></span>
       </div>
       <div id="rollRow">
@@ -136,7 +152,7 @@
       <div id="scoreEmpty"></div>
     </div>
     <div class="card hint" id="howto" data-title="かきかた.hlp">
-      <b>📝 譜面のかきかた(うたテキスト形式)</b><br>
+      <b>譜面のかきかた(うたテキスト形式)</b><br>
       <code>@tempo 110</code> テンポ ／
       <code>@voice うたこ</code> うたこ・ちびすけ・ロボまる・おじさま ／
       <code>@style ふつう</code> べたうち・ふつう・こぶし・ささやき・げんき<br>
@@ -144,11 +160,11 @@
       ・高さ … <code>ど れ み ふぁ そ ら し</code>+オクターブ(<code>ど4</code>=C4)。<code>#</code>/<code>♭</code>や<code>C4</code>式もOK<br>
       ・歌詞 … かな1音。<code>ー</code>のばす、<code>っ</code>やすむ、<code>にゃ</code>など拗音OK<br>
       ・長さ … 16分音符いくつぶんか(省略=4 → 4分音符)。休符は <code>・:4</code>。<code>|</code> は小節線(かざり)<br>
-      <b>🎛 調教記号</b>(音符のうしろに付ける):
+      <b>調教記号</b>(音符のうしろに付ける):
       <code>&lt;</code>しゃくり <code>&gt;</code>フォール <code>~</code>ビブラート強め <code>_</code>ビブラート無し
       <code>*</code>こぶし <code>!</code>アクセント <code>?</code>よわく<br>
       例: <code>そ4:ら:8&lt;~</code> = ソを8分のばし、しゃくって入ってビブラート強め<br>
-      <b>🌙 かたりモード(ポエトリーリーディング)</b> — <code>@mode かたり</code> と書くと、
+      <b>かたりモード(ポエトリーリーディング)</b> — <code>@mode かたり</code> と書くと、
       あとは<b>ふつうの詩をひらがな/カタカナでそのまま書くだけ</b>。抑揚は自動。
       <code>、</code>小さな間 <code>。!?</code>大きな間(<code>?</code>は語尾上げ) 空行=もっと大きな間。
       <code>@tempo</code> は1分あたりのモーラ数(省略=320)。
@@ -170,7 +186,7 @@
 
 /* ---------- サンプル曲(songs/*.uta と同じ内容) ---------- */
 const EXAMPLES = {
-  '⭐ きらきらのほし': `# きらきらのほし(メロディ: きらきら星 / 歌詞: オリジナル)
+  'きらきらのほし': `# きらきらのほし(メロディ: きらきら星 / 歌詞: オリジナル)
 @tempo 104
 @voice うたこ
 @style ふつう
@@ -181,7 +197,7 @@ const EXAMPLES = {
 そ4:の そ4:せ ふぁ4:て ふぁ4:ま | み4:た み4:た れ4:く:8
 ど4:き ど4:ら そ4:き そ4:ら | ら4:ほ ら4:し そ4:が:8
 ふぁ4:よ ふぁ4:ぞ み4:ら み4:に | れ4:ひ れ4:か ど4:る:8~`,
-  '🐱 ねこのうた': `# ねこのうた(メロディ: かえるの合唱 / 歌詞: オリジナル)
+  'ねこのうた': `# ねこのうた(メロディ: かえるの合唱 / 歌詞: オリジナル)
 @tempo 120
 @voice ちびすけ
 @style げんき
@@ -191,7 +207,7 @@ const EXAMPLES = {
 ど4:にゃ ・:4 ど4:にゃ ・:4 | ど4:にゃ ・:4 ど4:にゃ ・:4
 ど4:みゃ:2 ど4:みゃ:2 れ4:みゃ:2 れ4:みゃ:2 み4:みゃ:2 み4:みゃ:2 ふぁ4:みゃ:2 ふぁ4:みゃ:2
 み4:にゃ れ4:にゃ ど4:にゃ:8~`,
-  '🐑 もふもふねこ': `# もふもふねこ(メロディ: メリーさんのひつじ / 歌詞: オリジナル)
+  'もふもふねこ': `# もふもふねこ(メロディ: メリーさんのひつじ / 歌詞: オリジナル)
 @tempo 112
 @voice うたこ
 @style ふつう
@@ -200,7 +216,7 @@ const EXAMPLES = {
 れ4:き れ4:た れ4:よ:8 | み4:き そ4:た そ4:よ:8
 み4:お れ4:や ど4:つ れ4:を | み4:も み4:と み4:め み4:て
 れ4:う れ4:ち み4:に れ4:き | ど4:た:16>`,
-  '🌸 よざくらのうた(こぶし)': `# よざくらのうた(オリジナル / 調教スタイル「こぶし」のデモ)
+  'よざくらのうた(こぶし)': `# よざくらのうた(オリジナル / 調教スタイル「こぶし」のデモ)
 @tempo 76
 @voice おじさま
 @style こぶし
@@ -209,14 +225,14 @@ const EXAMPLES = {
 ・:4 ら3:か:4< ど4:ぜ:4 れ4:に:4 | み4:ゆ:6 れ4:れ:2 ど4:て:8>
 ・:4 み4:こ:4< そ4:こ:4 ら4:ろ:6*~ そ4:に:2 | み4:し:4 れ4:み:4 み4:る:8>~
 ・:4 ら3:よ:4< ど4:る:4 れ4:の:4 ど4:う:4 | ら3:た:12>*`,
-  '🤖 べたうちロボ': `# 調教なし(べたうち)のロボ声デモ
+  'べたうちロボ': `# 調教なし(べたうち)のロボ声デモ
 @tempo 132
 @voice ロボまる
 @style べたうち
 
 ど4:わ ど4:た み4:し そ4:は | ど5:ろ:2 し4:ぼ:2 ら4:っ:2 そ4:と:2 ・:4
 ど4:う み4:た そ4:を ら4:う | そ4:た:4 み4:い:4 れ4:ま:4 ど4:す:8`,
-  '🌙 よるのポエトリー(かたり)': `# よるのポエトリー(オリジナル / @mode かたり のデモ)
+  'よるのポエトリー(かたり)': `# よるのポエトリー(オリジナル / @mode かたり のデモ)
 @mode かたり
 @voice うたこ
 @style ささやき
@@ -238,7 +254,6 @@ const EXAMPLES = {
 const scoreEl = document.getElementById('score');
 const errEl = document.getElementById('err');
 let audioCtx = null, current = null;   // current = {src, startedAt, timeline, duration, raf}
-let currentVoice = 'うたこ';
 
 function getCtx(){
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -259,7 +274,6 @@ function play(){
   stop();
   const song = parseScore();
   if (!song) return;
-  currentVoice = song.voice;
   renderScore();
   const {samples, duration, timeline} = Utau.render(song);
   if (!timeline.length){ toast('うたう中身がないよ!サンプルを押してみてね'); return; }
@@ -271,7 +285,6 @@ function play(){
   const startedAt = ctx.currentTime + 0.05;
   src.start(startedAt);
   current = {src, startedAt, timeline, duration, raf:0};
-  face.singing = true;
   playheadEl.classList.add('on');
   const tick = () => {
     if (!current) return;
@@ -279,8 +292,7 @@ function play(){
     let ev = null;
     for (const e of current.timeline)
       if (t >= e.t0 && t < e.t1){ ev = e; break; }
-    face.vowel = ev ? ev.v : null;
-    setSpeech(ev ? '♪ ' + ev.lyric : '🎵 …');
+    setSpeech(ev ? '♪ ' + ev.lyric : '♪ …');
     updatePlayhead(t);
     if (t > current.duration){ stop(); return; }
     current.raf = requestAnimationFrame(tick);
@@ -292,7 +304,6 @@ function stop(){
   cancelAnimationFrame(current.raf);
   try { current.src.stop(); } catch(_){}
   current = null;
-  face.singing = false; face.vowel = null;
   playheadEl.classList.remove('on');
   setSpeech(randomIdleLine());
 }
@@ -341,14 +352,14 @@ function renderScore(){
   catch(_){ return; }   // 編集途中のエラーは楽譜側では前回表示を維持
 
   if (song.mode === 'かたり'){
-    scoreMetaEl.innerHTML = badge('🌙 かたり') + badge('♩' + song.tempo) + badge(song.voice) + badge(song.style);
-    showScoreEmpty('🌙 かたりモードは<b>詩の朗読</b>だから楽譜はないよ<br>音符でうたわせるとピアノロールがでるよ');
+    scoreMetaEl.innerHTML = badge('かたり') + badge('♩' + song.tempo) + badge(song.voice) + badge(song.style);
+    showScoreEmpty('かたりモードは<b>詩の朗読</b>だから楽譜はないよ<br>音符でうたわせるとピアノロールがでるよ');
     return;
   }
   const notes = song.notes;
   if (!notes.length){
     scoreMetaEl.innerHTML = badge('♩' + song.tempo) + badge(song.voice) + badge(song.style);
-    showScoreEmpty('🎵 まだ音符がないよ<br>サンプルを押すか <code>ど4:き:4</code> のように書いてね');
+    showScoreEmpty('♪ まだ音符がないよ<br>サンプルを押すか <code>ど4:き:4</code> のように書いてね');
     return;
   }
 
@@ -441,7 +452,7 @@ function exportWav(){
   a.href = url; a.download = 'utaukun-song.wav';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast('WAVにしたよ! ⬇');
+  toast('WAVにしたよ!');
 }
 function exportUst(){
   const song = parseScore();
@@ -455,14 +466,14 @@ function exportUst(){
   a.href = url; a.download = 'utaukun-song.ust';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast('USTにしたよ!本家UTAUでひらいてね 📤');
+  toast('USTにしたよ!本家UTAUでひらいてね');
 }
 function shareLink(){
   if (!parseScore()) return;
   const b64 = btoa(unescape(encodeURIComponent(scoreEl.value)));
   const url = location.origin + location.pathname + '#s=' + b64;
   (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
-    .then(() => toast('リンクをコピーしたよ!ともだちに送ってね 🔗'))
+    .then(() => toast('リンクをコピーしたよ!ともだちに送ってね'))
     .catch(() => prompt('このリンクをコピーしてね', url));
 }
 function loadFromHash(){
@@ -475,93 +486,53 @@ function loadFromHash(){
   } catch(_){ return false; }
 }
 
-/* ---------- かお ---------- */
-const face = {vowel:null, singing:false, blink:0, nextBlink:performance.now() + 1500};
-const faceCanvas = document.getElementById('faceCanvas');
-const VOICE_LOOK = {'うたこ':'uta', 'ちびすけ':'chibi', 'ロボまる':'robo', 'おじさま':'oji'};
-function drawFace(now){
-  const c = faceCanvas.getContext('2d');
-  const W = faceCanvas.width, H = faceCanvas.height;
-  c.clearRect(0, 0, W, H);
-  if (now > face.nextBlink){ face.blink = 1; face.nextBlink = now + 1200 + Math.random() * 3000; }
-  if (face.blink > 0) face.blink = Math.max(0, face.blink - 0.12);
-  const bob = face.singing ? Math.sin(now / 280) * 4 : Math.sin(now / 900) * 1.5;
-  const cx = W / 2, cy = H / 2 + 6 + bob;
-  const v = VOICE_LOOK[currentVoice] || 'uta';
-  if (v === 'robo'){
-    c.fillStyle = '#cfd8dc'; c.strokeStyle = '#90a4ae'; c.lineWidth = 4;
-    c.beginPath(); c.roundRect(cx - 62, cy - 56, 124, 112, 18); c.fill(); c.stroke();
-    c.beginPath(); c.moveTo(cx, cy - 56); c.lineTo(cx, cy - 76); c.stroke();
-    c.fillStyle = '#ff5252'; c.beginPath(); c.arc(cx, cy - 80, 6, 0, 7); c.fill();
+/* ---------- ジャケット画像(好きな画像を設定・localStorageに保存) ---------- */
+const coverImg = document.getElementById('coverImg');
+const coverEmpty = document.getElementById('coverEmpty');
+const coverFile = document.getElementById('coverFile');
+const COVER_KEY = 'utaukun-cover';
+function showCover(dataUrl){
+  if (dataUrl){
+    coverImg.src = dataUrl;
+    coverImg.style.display = 'block';
+    coverEmpty.style.display = 'none';
   } else {
-    const skin = v === 'chibi' ? '#ffe9b3' : v === 'oji' ? '#f5d3ad' : '#ffe0e9';
-    const edge = v === 'chibi' ? '#e0b25f' : v === 'oji' ? '#c99b64' : '#e8a3b8';
-    c.fillStyle = skin; c.strokeStyle = edge; c.lineWidth = 4;
-    c.beginPath(); c.arc(cx, cy, 62, 0, 7); c.fill(); c.stroke();
-    if (v === 'chibi'){
-      c.strokeStyle = '#e0b25f'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(cx, cy - 60);
-      c.quadraticCurveTo(cx + 6, cy - 84, cx + 22, cy - 78); c.stroke();
-    }
-    if (v === 'uta'){
-      c.fillStyle = '#ff7aa2';
-      c.beginPath(); c.moveTo(cx - 34, cy - 52); c.lineTo(cx - 52, cy - 64); c.lineTo(cx - 44, cy - 42); c.closePath(); c.fill();
-      c.beginPath(); c.moveTo(cx - 34, cy - 52); c.lineTo(cx - 20, cy - 68); c.lineTo(cx - 24, cy - 44); c.closePath(); c.fill();
-      c.beginPath(); c.arc(cx - 33, cy - 53, 6, 0, 7); c.fill();
-    }
-    if (v === 'oji'){
-      c.fillStyle = '#4a3f35';
-      c.fillRect(cx - 40, cy - 72, 80, 10);
-      c.fillRect(cx - 26, cy - 104, 52, 34);
-    }
-    c.fillStyle = 'rgba(255,122,162,.35)';
-    c.beginPath(); c.arc(cx - 38, cy + 14, 10, 0, 7); c.fill();
-    c.beginPath(); c.arc(cx + 38, cy + 14, 10, 0, 7); c.fill();
+    coverImg.removeAttribute('src');
+    coverImg.style.display = 'none';
+    coverEmpty.style.display = 'block';
   }
-  const eo = 24, ey = cy - 12;
-  const openness = 1 - Math.min(1, face.blink * 1.6);
-  for (const s of [-1, 1]){
-    c.fillStyle = v === 'robo' ? '#37474f' : '#4a3f35';
-    if (v === 'robo'){
-      c.fillRect(cx + s * eo - 8, ey - 8 * openness, 16, Math.max(3, 16 * openness));
-    } else if (openness < 0.3){
-      c.strokeStyle = '#4a3f35'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(cx + s * eo - 8, ey); c.lineTo(cx + s * eo + 8, ey); c.stroke();
-    } else {
-      c.beginPath(); c.ellipse(cx + s * eo, ey, 7, 9 * openness, 0, 0, 7); c.fill();
-      c.fillStyle = '#fff'; c.beginPath(); c.arc(cx + s * eo - 2, ey - 3, 2.5, 0, 7); c.fill();
-    }
-  }
-  if (v === 'oji'){
-    c.strokeStyle = '#6d5a44'; c.lineWidth = 5;
-    c.beginPath(); c.moveTo(cx - 4, cy + 16); c.quadraticCurveTo(cx - 22, cy + 10, cx - 30, cy + 20); c.stroke();
-    c.beginPath(); c.moveTo(cx + 4, cy + 16); c.quadraticCurveTo(cx + 22, cy + 10, cx + 30, cy + 20); c.stroke();
-  }
-  const my = cy + 26, mv = face.vowel;
-  c.fillStyle = '#b03a48';
-  c.beginPath();
-  if (!mv){
-    c.strokeStyle = '#4a3f35'; c.lineWidth = 3;
-    c.arc(cx, my - 6, 10, 0.3, Math.PI - 0.3); c.stroke();
-  } else if (mv === 'a'){
-    c.ellipse(cx, my, 14, 13, 0, 0, 7); c.fill();
-    c.fillStyle = '#e57373'; c.beginPath(); c.ellipse(cx, my + 6, 8, 5, 0, 0, 7); c.fill();
-  } else if (mv === 'i'){ c.roundRect(cx - 13, my - 3, 26, 6, 3); c.fill();
-  } else if (mv === 'u'){ c.arc(cx, my, 6, 0, 7); c.fill();
-  } else if (mv === 'e'){ c.ellipse(cx, my, 12, 7, 0, 0, 7); c.fill();
-  } else if (mv === 'o'){ c.ellipse(cx, my, 8, 12, 0, 0, 7); c.fill();
-  } else { c.roundRect(cx - 8, my - 2, 16, 4, 2); c.fill(); }
-  if (face.singing){
-    c.font = '20px sans-serif'; c.fillStyle = '#ff7aa2';
-    const p = (now / 700) % 1;
-    c.globalAlpha = 1 - p;
-    c.fillText('♪', cx + 70, cy - 30 - p * 30);
-    c.fillText('♫', cx - 88, cy - 10 - ((p + 0.5) % 1) * 30);
-    c.globalAlpha = 1;
-  }
-  requestAnimationFrame(drawFace);
 }
-requestAnimationFrame(drawFace);
+function setCoverFromFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    // localStorageに収まるよう縮小して保存(長辺512px)
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 512 / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(img.width * scale));
+      cv.height = Math.max(1, Math.round(img.height * scale));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+      try { localStorage.setItem(COVER_KEY, dataUrl); } catch(_){ toast('画像が大きすぎて保存できなかったよ'); }
+      showCover(dataUrl);
+      toast('画像をせっていしたよ');
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+document.getElementById('btnCover').addEventListener('click', () => coverFile.click());
+coverFile.addEventListener('change', () => {
+  if (coverFile.files && coverFile.files[0]) setCoverFromFile(coverFile.files[0]);
+  coverFile.value = '';
+});
+document.getElementById('btnCoverClear').addEventListener('click', () => {
+  try { localStorage.removeItem(COVER_KEY); } catch(_){}
+  showCover(null);
+  toast('画像をはずしたよ');
+});
+try { showCover(localStorage.getItem(COVER_KEY)); } catch(_){ showCover(null); }
 
 const IDLE_LINES = ['うたいたいなあ…', '譜面をはってね!', 'AIに作曲たのんでみて♪', 'きょうもいいこえ!', 'れんしゅうちゅう…らら〜♪'];
 function randomIdleLine(){ return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]; }
@@ -607,11 +578,9 @@ function saveLocal(){
 if (!loadFromHash()){
   let saved = null;
   try { saved = localStorage.getItem('utaukun-score'); } catch(_){}
-  scoreEl.value = saved || EXAMPLES['⭐ きらきらのほし'];
+  scoreEl.value = saved || EXAMPLES['きらきらのほし'];
   setSpeech(randomIdleLine());
 }
-// 譜面から声を推定して顔を出しておく
-try { currentVoice = Utau.parse(scoreEl.value).voice; } catch(_){}
 renderScore();
 
 /* テスト用フック */
