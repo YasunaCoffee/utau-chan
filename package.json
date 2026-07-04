@@ -17,10 +17,12 @@
   },
   "files": [
     "engine.js",
+    "synth.js",
     "sing.js",
     "singteto.js",
     "export-ust.js",
     "index.html",
+    "band.html",
     "songs/",
     "tools/"
   ],
