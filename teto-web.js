@@ -231,7 +231,7 @@
   // opts: {vib=true, reverb=true}
   // 返り値: {master, placed, missing:[], vcv, tooLong}
   function render(song, opts) {
-    if (!BANK) throw new Error('テト音源が読み込まれていません');
+    if (!BANK) throw new Error('UTAU音源が読み込まれていません');
     const useVib = !opts || opts.vib !== false;
     const useReverb = !opts || opts.reverb !== false;
     const Utau = global.Utau;
