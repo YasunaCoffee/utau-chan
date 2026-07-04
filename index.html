@@ -17,7 +17,15 @@
     color:#fff; text-shadow:1px 1px 0 #004040;}
   header h1{margin:0; font-size:22px; letter-spacing:2px; font-weight:bold;}
   header .tagline{font-size:12px; opacity:.9;}
-  main{display:flex; gap:12px; padding:10px 16px 26px; align-items:flex-start; flex-wrap:wrap;}
+  /* ページ切り替えタブ(Win97のプロパティシート風) */
+  #tabs{display:flex; align-items:flex-end; padding:10px 16px 0; position:relative; z-index:1;}
+  .tab{ display:inline-block; text-decoration:none; color:var(--ink); font-size:13px;
+    background:#a8a8a8; padding:5px 20px 6px; margin-right:2px; position:relative; top:2px;
+    border:2px solid; border-color:var(--hi) var(--dark) transparent var(--hi);}
+  .tab.active{ background:var(--face); font-weight:bold; top:0; padding-bottom:9px; z-index:2;}
+  .tab:not(.active):hover{background:#b8b8b8;}
+  main{display:flex; gap:12px; padding:10px 16px 26px; align-items:flex-start; flex-wrap:wrap;
+    border-top:2px solid var(--hi); background:rgba(192,192,192,.12); margin-top:-2px;}
   /* ウィンドウ(タイトルバーはdata-title属性から生成) */
   .card{ position:relative; background:var(--face); padding:36px 10px 10px;
     border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
@@ -96,6 +104,11 @@
   <h1>うたうちゃん</h1>
   <span class="tagline">譜面テキストを貼ると歌ってくれるよ — AIに作曲・調教をたのんでね</span>
 </header>
+
+<nav id="tabs">
+  <a class="tab active" href="index.html">♪ うたうちゃん</a>
+  <a class="tab" href="band.html">♫ バンドちゃん</a>
+</nav>
 
 <main>
   <div id="left">
@@ -490,7 +503,7 @@ function loadFromHash(){
 const coverImg = document.getElementById('coverImg');
 const coverEmpty = document.getElementById('coverEmpty');
 const coverFile = document.getElementById('coverFile');
-const COVER_KEY = 'utaukun-cover';
+const COVER_KEY = 'utauchan-cover';   // うたうちゃん/バンドちゃんで共有
 function showCover(dataUrl){
   if (dataUrl){
     coverImg.src = dataUrl;
@@ -532,7 +545,7 @@ document.getElementById('btnCoverClear').addEventListener('click', () => {
   showCover(null);
   toast('画像をはずしたよ');
 });
-try { showCover(localStorage.getItem(COVER_KEY)); } catch(_){ showCover(null); }
+try { showCover(localStorage.getItem(COVER_KEY) || localStorage.getItem('utaukun-cover')); } catch(_){ showCover(null); }
 
 const IDLE_LINES = ['うたいたいなあ…', '譜面をはってね!', 'AIに作曲たのんでみて♪', 'きょうもいいこえ!', 'れんしゅうちゅう…らら〜♪'];
 function randomIdleLine(){ return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]; }
