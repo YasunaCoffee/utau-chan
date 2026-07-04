@@ -7,58 +7,84 @@
 <meta name="description" content="Strudel風のライブコーディング・シンセサイザー。テキストでドラム・ベース・コード・リード・うたを書いて、その場で演奏。差し替え・WAV保存・共有リンク対応。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛</text></svg>">
 <style>
-  :root{ --bg:#fdf6ec; --card:#fff; --ink:#4a3f35; --accent:#ff7aa2; --accent2:#6ec6ff; --line:#e8ddcf; }
-  *{box-sizing:border-box;}
-  body{ margin:0; background:var(--bg); color:var(--ink);
-    font-family:"Hiragino Maru Gothic ProN","BIZ UDGothic","Yu Gothic UI","Meiryo",sans-serif; }
-  header{padding:16px 20px 4px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
-  header h1{margin:0; font-size:24px; letter-spacing:1px;}
-  header .tagline{font-size:13px; opacity:.75;}
-  main{display:flex; gap:16px; padding:12px 20px 30px; align-items:flex-start; flex-wrap:wrap;}
-  .card{background:var(--card); border:2px solid var(--line); border-radius:16px; padding:14px;}
+  /* ---- Windows 97風クラシックテーマ + ターミナル質感 ---- */
+  :root{ --desk:#008080; --face:#c0c0c0; --dark:#404040; --mid:#808080; --hi:#fff;
+    --title1:#000080; --title2:#1084d0; --term-bg:#000; --term-fg:#33ff33; --ink:#000; }
+  *{box-sizing:border-box; border-radius:0 !important;}
+  body{ margin:0; background:var(--desk); color:var(--ink); font-size:13px;
+    font-family:"MS UI Gothic","MS PGothic","ＭＳ Ｐゴシック",Osaka,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif; }
+  header{padding:12px 16px 2px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    color:#fff; text-shadow:1px 1px 0 #004040;}
+  header h1{margin:0; font-size:20px; letter-spacing:1px; font-weight:bold;}
+  header .tagline{font-size:12px; opacity:.9;}
+  main{display:flex; gap:12px; padding:10px 16px 26px; align-items:flex-start; flex-wrap:wrap;}
+  /* ウィンドウ(タイトルバーはdata-title属性から生成) */
+  .card{ position:relative; background:var(--face); padding:36px 10px 10px;
+    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
+    box-shadow:1px 1px 0 #000;}
+  .card::before{ content:attr(data-title); position:absolute; left:3px; right:3px; top:3px;
+    height:22px; line-height:22px; padding:0 6px; overflow:hidden; white-space:nowrap;
+    background:linear-gradient(90deg,var(--title1),var(--title2)); color:#fff;
+    font-weight:bold; font-size:12px; letter-spacing:1px;}
+  .card::after{ content:"— ▢ ✕"; position:absolute; top:3px; right:6px; height:22px; line-height:22px;
+    color:#fff; font-size:10px; letter-spacing:4px; pointer-events:none;}
   #left{width:240px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
   #faceCanvas{display:block; margin:0 auto;}
-  #speech{min-height:26px; text-align:center; font-size:14px; color:#8a7b6c; margin-top:2px;}
+  #speech{min-height:26px; text-align:center; font-size:12px; color:#000080; margin-top:4px;
+    background:var(--face); border:1px solid; border-color:var(--mid) var(--hi) var(--hi) var(--mid); padding:3px 4px;}
   #right{flex:1; min-width:380px; display:flex; flex-direction:column; gap:12px;}
-  #score{ width:100%; height:220px; font-family:ui-monospace,Consolas,monospace; font-size:14px; line-height:1.7;
-    border:2px solid var(--line); border-radius:12px; padding:10px; resize:vertical; color:var(--ink); background:#fffdf8;}
+  #score{ width:100%; height:220px; font-size:13px; line-height:1.7; padding:8px; resize:vertical;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,Consolas,monospace;
+    background:var(--term-bg); color:var(--term-fg); caret-color:var(--term-fg);
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);}
   #buttons{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
-  button{ font-family:inherit; font-size:14px; color:var(--ink); background:var(--card);
-    border:2px solid var(--line); border-radius:12px; padding:9px 16px; cursor:pointer; box-shadow:0 2px 0 var(--line);}
-  button:active{transform:translateY(2px); box-shadow:none;}
-  button.primary{background:var(--accent); border-color:#e05f87; color:#fff; box-shadow:0 2px 0 #e05f87; font-weight:bold;}
-  button.mute.on{background:#e0d2bd; border-color:#b7a693;}
+  button{ font-family:inherit; font-size:13px; color:var(--ink); background:var(--face);
+    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
+    padding:6px 14px; cursor:pointer; box-shadow:1px 1px 0 #000;}
+  button:active{border-color:var(--dark) var(--hi) var(--hi) var(--dark); box-shadow:none;}
+  button.primary{font-weight:bold;}
+  button.mute.on{border-color:var(--dark) var(--hi) var(--hi) var(--dark); background:#a8a8a8;}
   .chips{display:flex; gap:6px; flex-wrap:wrap;}
-  .chips button{padding:5px 10px; font-size:12px; border-radius:999px;}
-  #err{color:#c62828; font-size:13px; white-space:pre-wrap; margin-top:6px; min-height:0;}
-  .hint{font-size:12px; line-height:1.9; color:#8a7b6c;}
-  .hint code{background:#f6efe3; border-radius:4px; padding:1px 5px; font-size:11px;}
-  .hint b{color:var(--ink);}
-  #toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(80px);
-    background:var(--ink); color:#fff; padding:10px 22px; border-radius:999px; font-size:14px;
-    transition:transform .25s; z-index:99; pointer-events:none;}
+  .chips button{padding:3px 9px; font-size:12px;}
+  #err{color:#a00000; font-size:12px; white-space:pre-wrap; margin-top:6px; min-height:0;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  .hint{font-size:12px; line-height:1.9; color:#222;}
+  .hint code{background:var(--term-bg); color:var(--term-fg); padding:1px 5px; font-size:11px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  .hint b{color:#000080;}
+  #toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(90px);
+    background:var(--face); color:var(--ink); padding:8px 20px; font-size:13px;
+    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
+    box-shadow:2px 2px 0 #000; transition:transform .25s; z-index:99; pointer-events:none;}
   #toast.show{transform:translateX(-50%) translateY(0);}
-  footer{padding:0 20px 40px; font-size:12px; color:#a08f7d; line-height:1.8;}
+  footer{padding:0 16px 36px; font-size:12px; color:#d8f0f0; line-height:1.8;}
+  footer code{background:var(--term-bg); color:var(--term-fg); padding:1px 5px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  input[type=range]{accent-color:#000080;}
   /* ---- テンポ ---- */
   #tempoRow{display:flex; align-items:center; gap:10px; font-size:13px;}
   #tempoRow input[type=range]{flex:1;}
-  #tempoVal{min-width:48px; text-align:right; font-variant-numeric:tabular-nums;}
+  #tempoVal{min-width:48px; text-align:right; font-variant-numeric:tabular-nums;
+    background:var(--term-bg); color:var(--term-fg); padding:1px 6px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
   /* ---- ミキサー ---- */
   #mixer{display:flex; flex-direction:column; gap:8px;}
   .mixRow{display:flex; align-items:center; gap:8px; font-size:13px;}
   .mixRow .mixName{width:64px; flex-shrink:0; font-weight:bold;}
   .mixRow input[type=range]{flex:1;}
-  .mixRow button{padding:4px 9px; font-size:12px; border-radius:8px;}
-  /* ---- ステップ可視化 ---- */
-  #gridCard{padding:12px;}
+  .mixRow button{padding:3px 8px; font-size:12px;}
+  /* ---- ステップ可視化(ターミナル調) ---- */
+  #gridCard{padding:36px 10px 10px;}
   #gridHead{display:flex; align-items:baseline; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
-  .gridTitle{font-size:14px; font-weight:bold; letter-spacing:1px;}
-  #gridMeta{font-size:12px; color:#8a7b6c;}
-  #gridMeta .b{display:inline-block; background:#f6efe3; border:1px solid var(--line);
-    border-radius:999px; padding:1px 9px; margin-right:5px; color:var(--ink);}
-  #gridWrap{border:2px solid var(--line); border-radius:12px; overflow:hidden; background:#fffdf8;}
+  .gridTitle{font-size:13px; font-weight:bold; letter-spacing:1px;}
+  #gridMeta{font-size:12px;}
+  #gridMeta .b{display:inline-block; background:var(--term-bg); color:var(--term-fg);
+    border:1px solid var(--term-fg); padding:1px 8px; margin-right:5px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  #gridWrap{background:var(--term-bg); overflow:hidden;
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);}
   #gridCanvas{display:block;}
-  #gridEmpty{padding:20px 14px; text-align:center; color:#a08f7d; font-size:13px; line-height:1.9;}
+  #gridEmpty{padding:20px 14px; text-align:center; color:#555; font-size:13px; line-height:1.9;}
 </style>
 </head>
 <body>
@@ -70,11 +96,11 @@
 
 <main>
   <div id="left">
-    <div class="card">
+    <div class="card" data-title="うたうちゃん.exe">
       <canvas id="faceCanvas" width="210" height="180"></canvas>
       <div id="speech">…</div>
     </div>
-    <div class="card hint">
+    <div class="card hint" data-title="あそびかた.txt">
       <b>🤖 あそびかた</b><br>
       「<b>バンドテキストでシティポップ風の8小節書いて</b>」とAIにたのむ→貼る→▶<br><br>
       ▶で演奏、編集して<b>✎ 差し替え</b>(またはCtrl+Enter)で次の小節から鳴り変わるよ。
@@ -82,7 +108,7 @@
   </div>
 
   <div id="right">
-    <div class="card">
+    <div class="card" data-title="C:\BANDCHAN\LIVE.BAND — バンドエディタ">
       <div class="chips" id="examples" style="margin-bottom:8px;"></div>
       <textarea id="score" spellcheck="false"></textarea>
       <div id="err"></div>
@@ -100,14 +126,12 @@
       </div>
     </div>
 
-    <div class="card" id="mixerCard">
-      <div class="gridTitle" style="margin-bottom:8px;">🎚 ミキサー</div>
+    <div class="card" id="mixerCard" data-title="MIXER.EXE — ミキサー">
       <div id="mixer"></div>
     </div>
 
-    <div class="card" id="gridCard">
+    <div class="card" id="gridCard" data-title="SEQUENCER.EXE — ステップシーケンサ">
       <div id="gridHead">
-        <span class="gridTitle">📊 ステップ</span>
         <span id="gridMeta"></span>
       </div>
       <div id="gridWrap">
@@ -116,7 +140,7 @@
       </div>
     </div>
 
-    <div class="card hint" id="howto">
+    <div class="card hint" id="howto" data-title="かきかた.hlp">
       <b>📝 バンドテキストのかきかた</b><br>
       <code>@tempo 120</code> テンポ(省略時100) ／ <code>@swing 0.1</code> スウィング(0〜0.3) ／
       <code>@voice うたこ</code> <code>@style ふつう</code>([うた]用)<br>
@@ -310,8 +334,9 @@ const gridCanvas = document.getElementById('gridCanvas');
 const gridEmptyEl = document.getElementById('gridEmpty');
 const gridMetaEl = document.getElementById('gridMeta');
 const CELL = 22, ROWH = 26, LABELW = 62, TOPPAD = 6;
-const COL = {line: '#e8ddcf', on: '#c7e6ff', onEdge: '#5bb8f5', uta: '#ffd6e4', utaEdge: '#ff7aa2',
-  bar: '#e0d2bd', cur: '#ff7aa2', ink: '#4a3f35'};
+// ターミナル調カラー(黒地に緑、うたトラックはマゼンタ、現在ステップは黄色)
+const COL = {line: '#262626', on: '#005500', onEdge: '#00ff66', uta: '#550055', utaEdge: '#ff66ff',
+  bar: '#4a4a4a', cur: '#ffff00', ink: '#33ff33'};
 
 function badge(t) { return '<span class="b">' + t + '</span>'; }
 
@@ -365,7 +390,7 @@ function drawGrid(song) {
   g.textAlign = 'left'; g.textBaseline = 'middle';
   names.forEach((name, row) => {
     const y = TOPPAD + row * ROWH;
-    g.fillStyle = COL.ink; g.font = 'bold 11px "Hiragino Maru Gothic ProN",sans-serif';
+    g.fillStyle = COL.ink; g.font = 'bold 11px "MS Gothic","Osaka-Mono",monospace';
     g.fillText(name, 4, y + ROWH / 2);
     const track = song.tracks[name];
     for (let col = 0; col < 16; col++) {

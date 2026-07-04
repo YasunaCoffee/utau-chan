@@ -7,57 +7,79 @@
 <meta name="description" content="テキストで書いた譜面(調教記号つき)をボカロ風の合成音声で歌うプレイヤー。AIに譜面を書かせて貼るだけ。インストール不要・WAV保存・共有リンク対応。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎤</text></svg>">
 <style>
-  :root{ --bg:#fdf6ec; --card:#fff; --ink:#4a3f35; --accent:#ff7aa2; --accent2:#6ec6ff; --line:#e8ddcf; }
-  *{box-sizing:border-box;}
-  body{ margin:0; background:var(--bg); color:var(--ink);
-    font-family:"Hiragino Maru Gothic ProN","BIZ UDGothic","Yu Gothic UI","Meiryo",sans-serif; }
-  header{padding:16px 20px 4px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
-  header h1{margin:0; font-size:26px; letter-spacing:2px;}
-  header .tagline{font-size:13px; opacity:.75;}
-  main{display:flex; gap:16px; padding:12px 20px 30px; align-items:flex-start; flex-wrap:wrap;}
-  .card{background:var(--card); border:2px solid var(--line); border-radius:16px; padding:14px;}
+  /* ---- Windows 97風クラシックテーマ + ターミナル質感 ---- */
+  :root{ --desk:#008080; --face:#c0c0c0; --dark:#404040; --mid:#808080; --hi:#fff;
+    --title1:#000080; --title2:#1084d0; --term-bg:#000; --term-fg:#33ff33; --ink:#000; }
+  *{box-sizing:border-box; border-radius:0 !important;}
+  body{ margin:0; background:var(--desk); color:var(--ink); font-size:13px;
+    font-family:"MS UI Gothic","MS PGothic","ＭＳ Ｐゴシック",Osaka,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif; }
+  header{padding:12px 16px 2px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    color:#fff; text-shadow:1px 1px 0 #004040;}
+  header h1{margin:0; font-size:22px; letter-spacing:2px; font-weight:bold;}
+  header .tagline{font-size:12px; opacity:.9;}
+  main{display:flex; gap:12px; padding:10px 16px 26px; align-items:flex-start; flex-wrap:wrap;}
+  /* ウィンドウ(タイトルバーはdata-title属性から生成) */
+  .card{ position:relative; background:var(--face); padding:36px 10px 10px;
+    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
+    box-shadow:1px 1px 0 #000;}
+  .card::before{ content:attr(data-title); position:absolute; left:3px; right:3px; top:3px;
+    height:22px; line-height:22px; padding:0 6px; overflow:hidden; white-space:nowrap;
+    background:linear-gradient(90deg,var(--title1),var(--title2)); color:#fff;
+    font-weight:bold; font-size:12px; letter-spacing:1px;}
+  .card::after{ content:"— ▢ ✕"; position:absolute; top:3px; right:6px; height:22px; line-height:22px;
+    color:#fff; font-size:10px; letter-spacing:4px; pointer-events:none;}
   #left{width:264px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
   #faceCanvas{display:block; margin:0 auto;}
-  #speech{min-height:30px; text-align:center; font-size:16px; color:#8a7b6c; margin-top:2px;}
+  #speech{min-height:28px; text-align:center; font-size:13px; color:#000080; margin-top:4px;
+    background:var(--face); border:1px solid; border-color:var(--mid) var(--hi) var(--hi) var(--mid); padding:3px 4px;}
   #right{flex:1; min-width:340px; display:flex; flex-direction:column; gap:12px;}
-  #score{ width:100%; height:280px; font-family:ui-monospace,Consolas,monospace; font-size:14px; line-height:1.7;
-    border:2px solid var(--line); border-radius:12px; padding:10px; resize:vertical; color:var(--ink); background:#fffdf8;}
+  #score{ width:100%; height:280px; font-size:13px; line-height:1.7; padding:8px; resize:vertical;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,Consolas,monospace;
+    background:var(--term-bg); color:var(--term-fg); caret-color:var(--term-fg);
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);}
   #buttons{display:flex; gap:8px; flex-wrap:wrap;}
-  button{ font-family:inherit; font-size:14px; color:var(--ink); background:var(--card);
-    border:2px solid var(--line); border-radius:12px; padding:9px 16px; cursor:pointer; box-shadow:0 2px 0 var(--line);}
-  button:active{transform:translateY(2px); box-shadow:none;}
-  button.primary{background:var(--accent); border-color:#e05f87; color:#fff; box-shadow:0 2px 0 #e05f87; font-weight:bold;}
+  button{ font-family:inherit; font-size:13px; color:var(--ink); background:var(--face);
+    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
+    padding:6px 14px; cursor:pointer; box-shadow:1px 1px 0 #000;}
+  button:active{border-color:var(--dark) var(--hi) var(--hi) var(--dark); box-shadow:none;}
+  button.primary{font-weight:bold;}
   .chips{display:flex; gap:6px; flex-wrap:wrap;}
-  .chips button{padding:5px 10px; font-size:12px; border-radius:999px;}
-  #err{color:#c62828; font-size:13px; white-space:pre-wrap; margin-top:6px; min-height:0;}
-  .hint{font-size:12px; line-height:1.9; color:#8a7b6c;}
-  .hint code{background:#f6efe3; border-radius:4px; padding:1px 5px; font-size:11px;}
-  .hint b{color:var(--ink);}
-  #toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(80px);
-    background:var(--ink); color:#fff; padding:10px 22px; border-radius:999px; font-size:14px;
-    transition:transform .25s; z-index:99; pointer-events:none;}
+  .chips button{padding:3px 9px; font-size:12px;}
+  #err{color:#a00000; font-size:12px; white-space:pre-wrap; margin-top:6px; min-height:0;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  .hint{font-size:12px; line-height:1.9; color:#222;}
+  .hint code{background:var(--term-bg); color:var(--term-fg); padding:1px 5px; font-size:11px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  .hint b{color:#000080;}
+  #toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(90px);
+    background:var(--face); color:var(--ink); padding:8px 20px; font-size:13px;
+    border:2px solid; border-color:var(--hi) var(--dark) var(--dark) var(--hi);
+    box-shadow:2px 2px 0 #000; transition:transform .25s; z-index:99; pointer-events:none;}
   #toast.show{transform:translateX(-50%) translateY(0);}
-  footer{padding:0 20px 40px; font-size:12px; color:#a08f7d; line-height:1.8;}
-  /* ---- 楽譜プレビュー ---- */
-  #scoreCard{padding:12px 12px 10px;}
+  footer{padding:0 16px 36px; font-size:12px; color:#d8f0f0; line-height:1.8;}
+  footer code{background:var(--term-bg); color:var(--term-fg); padding:1px 5px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  input[type=range]{accent-color:#000080;}
+  /* ---- 楽譜プレビュー(ターミナル調ピアノロール) ---- */
+  #scoreCard{padding:36px 10px 8px;}
   #scoreHead{display:flex; align-items:baseline; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
-  .scoreTitle{font-size:14px; font-weight:bold; letter-spacing:1px;}
-  #scoreMeta{font-size:12px; color:#8a7b6c;}
-  #scoreMeta .b{display:inline-block; background:#f6efe3; border:1px solid var(--line);
-    border-radius:999px; padding:1px 9px; margin-right:5px; color:var(--ink);}
-  #rollRow{display:flex; align-items:stretch; border:2px solid var(--line);
-    border-radius:12px; overflow:hidden; background:#fffdf8;}
-  #keysCanvas{display:block; flex-shrink:0; background:#fff;}
+  .scoreTitle{font-size:13px; font-weight:bold; letter-spacing:1px;}
+  #scoreMeta{font-size:12px;}
+  #scoreMeta .b{display:inline-block; background:var(--term-bg); color:var(--term-fg);
+    border:1px solid var(--term-fg); padding:1px 8px; margin-right:5px;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
+  #rollRow{display:flex; align-items:stretch; background:var(--term-bg);
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark); overflow:hidden;}
+  #keysCanvas{display:block; flex-shrink:0; background:var(--term-bg);}
   #rollScroll{position:relative; overflow-x:auto; overflow-y:hidden; flex:1; scrollbar-width:thin;}
   #rollInner{position:relative;}
   #rollCanvas{display:block;}
   #playhead{position:absolute; top:0; bottom:0; left:0; width:2px;
-    background:var(--accent); box-shadow:0 0 6px rgba(255,122,162,.7);
-    transform:translateX(-3px); opacity:0; transition:opacity .15s; pointer-events:none;}
+    background:#ff5555; transform:translateX(-3px); opacity:0; transition:opacity .15s; pointer-events:none;}
   #playhead::before{content:""; position:absolute; top:0; left:-4px;
-    border:5px solid transparent; border-top-color:var(--accent); border-bottom:none;}
+    border:5px solid transparent; border-top-color:#ff5555; border-bottom:none;}
   #playhead.on{opacity:1;}
-  #scoreEmpty{display:none; padding:26px 14px; text-align:center; color:#a08f7d; font-size:13px; line-height:1.9;}
+  #scoreEmpty{display:none; padding:26px 14px; text-align:center; color:#555; font-size:13px; line-height:1.9;}
 </style>
 </head>
 <body>
@@ -69,11 +91,11 @@
 
 <main>
   <div id="left">
-    <div class="card">
+    <div class="card" data-title="うたうちゃん.exe">
       <canvas id="faceCanvas" width="230" height="195"></canvas>
       <div id="speech">…</div>
     </div>
-    <div class="card hint">
+    <div class="card hint" data-title="あそびかた.txt">
       <b>🤖 あそびかた(AI編)</b><br>
       ChatGPTやClaudeにこのページの「かきかた」を見せて、<br>
       「<b>ねこのテーマで1曲、こぶし多めで調教して</b>」<br>
@@ -85,7 +107,7 @@
   </div>
 
   <div id="right">
-    <div class="card">
+    <div class="card" data-title="C:\UTAUCHAN\SCORE.UTA — ふめんエディタ">
       <div class="chips" id="examples" style="margin-bottom:8px;"></div>
       <textarea id="score" spellcheck="false"></textarea>
       <div id="err"></div>
@@ -97,7 +119,7 @@
         <button id="btnShare">🔗 共有リンク</button>
       </div>
     </div>
-    <div class="card" id="scoreCard">
+    <div class="card" id="scoreCard" data-title="PIANOROLL.EXE — 楽譜ビューア">
       <div id="scoreHead">
         <span class="scoreTitle">🎼 楽譜</span>
         <span id="scoreMeta"></span>
@@ -113,7 +135,7 @@
       </div>
       <div id="scoreEmpty"></div>
     </div>
-    <div class="card hint" id="howto">
+    <div class="card hint" id="howto" data-title="かきかた.hlp">
       <b>📝 譜面のかきかた(うたテキスト形式)</b><br>
       <code>@tempo 110</code> テンポ ／
       <code>@voice うたこ</code> うたこ・ちびすけ・ロボまる・おじさま ／
@@ -291,8 +313,9 @@ const KEYW = 42;    // 左の鍵盤ガター幅(px)
 const TOPPAD = 18, BOTPAD = 6;
 const NOTE_NAMES = ['ど','ど♯','れ','れ♯','み','ふぁ','ふぁ♯','そ','そ♯','ら','ら♯','し'];
 const isBlack = m => [1,3,6,8,10].includes(((m % 12) + 12) % 12);
-const COL = {ink:'#4a3f35', line:'#e8ddcf', black:'#f4ede1', beat:'#efe6d6', bar:'#e0d2bd',
-  noteFill:'#c7e6ff', noteEdge:'#5bb8f5', modFill:'#ffd6e4', modEdge:'#ff7aa2', barNum:'#b7a693'};
+// ターミナル調カラー(黒地に緑、調教音符はアンバー)
+const COL = {ink:'#33ff33', line:'#262626', black:'#141414', beat:'#1e1e1e', bar:'#4a4a4a',
+  noteFill:'#005500', noteEdge:'#00ff66', modFill:'#553f00', modEdge:'#ffcc00', barNum:'#7a7a7a'};
 
 let scoreLayout = null;   // 再生プレイヘッド用 {st}
 
@@ -356,8 +379,8 @@ function renderScore(){
     if (isBlack(m)){ kg.fillStyle = COL.black; kg.fillRect(0, y, KEYW, ROWH); }
     kg.strokeStyle = COL.line; kg.lineWidth = 1;
     kg.beginPath(); kg.moveTo(0, y + ROWH + 0.5); kg.lineTo(KEYW, y + ROWH + 0.5); kg.stroke();
-    kg.fillStyle = isBlack(m) ? '#a99a86' : COL.ink;
-    kg.font = (pc === 0 ? 'bold ' : '') + '9px "Hiragino Maru Gothic ProN",sans-serif';
+    kg.fillStyle = isBlack(m) ? '#3e8e3e' : COL.ink;
+    kg.font = (pc === 0 ? 'bold ' : '') + '9px "MS Gothic","Osaka-Mono",monospace';
     kg.fillText(NOTE_NAMES[pc] + (pc === 0 ? Math.floor(m / 12) - 1 : ''), KEYW - 4, y + ROWH / 2);
   }
   kg.strokeStyle = COL.line; kg.lineWidth = 2;
@@ -388,8 +411,8 @@ function renderScore(){
     const mod = n.mods && n.mods.length;
     g.fillStyle = mod ? COL.modFill : COL.noteFill;
     g.strokeStyle = mod ? COL.modEdge : COL.noteEdge; g.lineWidth = 1;
-    g.beginPath(); g.roundRect(x + 1, y + 1, w, h, 4); g.fill(); g.stroke();
-    g.fillStyle = COL.ink; g.font = '10px "Hiragino Maru Gothic ProN",sans-serif';
+    g.beginPath(); g.rect(x + 1, y + 1, w, h); g.fill(); g.stroke();   // 角丸なし(クラシック)
+    g.fillStyle = '#d8ffd8'; g.font = '10px "MS Gothic","Osaka-Mono",monospace';
     if (w >= 10) g.fillText(n.lyric, x + 1 + w / 2, y + 1 + h / 2 + 0.5);
     if (mod){                                                // 調教記号を音符の左上に小さく
       g.fillStyle = COL.modEdge; g.font = '8px ui-monospace,monospace';
