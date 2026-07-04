@@ -46,6 +46,15 @@
     font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;}
   #coverBtns{display:flex; gap:6px; margin-top:8px;}
   #coverBtns button{flex:1; padding:4px 6px; font-size:12px;}
+  /* テト音源(UTAU音源フォルダ)ローダー */
+  #tetoStatus{margin-top:8px; padding:5px 6px; min-height:36px; font-size:11px; line-height:1.7;
+    background:var(--term-bg); color:var(--term-fg); word-break:break-all;
+    font-family:"MS Gothic","Osaka-Mono",ui-monospace,monospace;
+    border:2px solid; border-color:var(--dark) var(--hi) var(--hi) var(--dark);}
+  #tetoBtns{display:flex; gap:6px; margin-top:8px;}
+  #tetoBtns button{flex:1; padding:4px 6px; font-size:12px;}
+  #tetoBtns button:disabled{color:#808080; text-shadow:1px 1px 0 #fff; cursor:default;}
+  .tetoNote{font-size:11px; line-height:1.7; color:#444; margin-top:6px;}
   #speech{min-height:28px; text-align:center; font-size:13px; color:#000080; margin-top:8px;
     background:var(--face); border:1px solid; border-color:var(--mid) var(--hi) var(--hi) var(--mid); padding:3px 4px;}
   #right{flex:1; min-width:340px; display:flex; flex-direction:column; gap:12px;}
@@ -124,6 +133,17 @@
       <input type="file" id="coverFile" accept="image/*" hidden>
       <div id="speech">…</div>
     </div>
+    <div class="card" data-title="TETO.EXE — 実録音でうたう">
+      <button id="btnTetoBank" style="width:100%;">音源フォルダをえらぶ…</button>
+      <input type="file" id="tetoDir" webkitdirectory hidden>
+      <div id="tetoStatus">音源: 未よみこみ</div>
+      <div id="tetoBtns">
+        <button id="btnTetoPlay" disabled>▶ テトでうたう</button>
+        <button id="btnTetoWav" disabled>WAV</button>
+      </div>
+      <div class="tetoNote">UTAU音源(oto.ini+WAV)のフォルダを指定すると実録音の声でうたうよ。
+        音源は再配布不可のため同梱してないよ(重音テト等を各自DL)。読み込みはこのブラウザ内だけで完結、どこにも送信しないよ。</div>
+    </div>
     <div class="card hint" data-title="あそびかた.txt">
       <b>あそびかた(AI編)</b><br>
       ChatGPTやClaudeにこのページの「かきかた」を見せて、<br>
@@ -194,6 +214,7 @@
 <div id="toast"></div>
 
 <script src="engine.js"></script>
+<script src="tetoengine.js"></script>
 <script>
 "use strict";
 
@@ -283,13 +304,8 @@ function parseScore(){
     return null;
   }
 }
-function play(){
-  stop();
-  const song = parseScore();
-  if (!song) return;
-  renderScore();
-  const {samples, duration, timeline} = Utau.render(song);
-  if (!timeline.length){ toast('うたう中身がないよ!サンプルを押してみてね'); return; }
+// 波形を再生してプレイヘッド・歌詞表示を動かす(フォルマント合成/テト共通)
+function playSamples(samples, duration, timeline){
   const ctx = getCtx();
   const ab = ctx.createBuffer(1, samples.length, Utau.SR);
   ab.copyToChannel(samples, 0);
@@ -311,6 +327,15 @@ function play(){
     current.raf = requestAnimationFrame(tick);
   };
   tick();
+}
+function play(){
+  stop();
+  const song = parseScore();
+  if (!song) return;
+  renderScore();
+  const {samples, duration, timeline} = Utau.render(song);
+  if (!timeline.length){ toast('うたう中身がないよ!サンプルを押してみてね'); return; }
+  playSamples(samples, duration, timeline);
 }
 function stop(){
   if (!current) return;
@@ -546,6 +571,99 @@ document.getElementById('btnCoverClear').addEventListener('click', () => {
   toast('画像をはずしたよ');
 });
 try { showCover(localStorage.getItem(COVER_KEY) || localStorage.getItem('utaukun-cover')); } catch(_){ showCover(null); }
+
+/* ---------- テト音源(UTAU音源フォルダ)をよみこんで実録音でうたう ---------- */
+let tetoBank = null;   // {oto, files: Map<oto基準の相対名, File>, label}
+const tetoStatusEl = document.getElementById('tetoStatus');
+const tetoDirEl = document.getElementById('tetoDir');
+const btnTetoPlay = document.getElementById('btnTetoPlay');
+const btnTetoWav = document.getElementById('btnTetoWav');
+let tetoBusy = false;
+
+async function loadTetoBank(fileList){
+  const files = [...fileList];
+  const otos = files.filter(f => f.name.toLowerCase() === 'oto.ini');
+  if (!otos.length){
+    tetoStatusEl.textContent = 'ERROR: oto.ini が見つからないよ(音源フォルダごと選んでね)';
+    return;
+  }
+  // 連続音 > 単独音 > その他 の順で優先
+  const rank = f => {
+    const p = f.webkitRelativePath || f.name;
+    return p.includes('連続音') ? 2 : p.includes('単独音') ? 1 : 0;
+  };
+  otos.sort((a, b) => rank(b) - rank(a));
+  const otoFile = otos[0];
+  const rel = otoFile.webkitRelativePath || otoFile.name;
+  const dir = rel.slice(0, rel.length - otoFile.name.length);   // oto.iniのあるフォルダ(前方一致キー)
+  const text = new TextDecoder('shift_jis').decode(await otoFile.arrayBuffer());
+  const oto = Teto.parseOto(text);
+  if (!oto.map.size){
+    tetoStatusEl.textContent = 'ERROR: oto.ini がよめなかったよ';
+    return;
+  }
+  const map = new Map();
+  for (const f of files){
+    const r = f.webkitRelativePath || f.name;
+    if (r.startsWith(dir) && /\.wav$/i.test(f.name)) map.set(r.slice(dir.length), f);
+  }
+  const label = dir.replace(/\/$/, '').split('/').pop() || 'UTAU音源';
+  tetoBank = {oto, files: map, label};
+  tetoStatusEl.textContent = `音源: ${label}\n${oto.vcv ? '連続音VCV' : '単独音CV'} / エイリアス${oto.map.size} / WAV ${map.size}個`;
+  btnTetoPlay.disabled = false;
+  btnTetoWav.disabled = false;
+  toast('テト音源をよみこんだよ');
+}
+async function renderTeto(){
+  const song = parseScore();
+  if (!song) return null;
+  if (!tetoBank){ toast('先に音源フォルダをよみこんでね'); return null; }
+  if (tetoBusy){ toast('レンダリング中だよ、ちょっとまってね'); return null; }
+  tetoBusy = true;
+  setSpeech('実録音でレンダリング中…');
+  toast('実録音でレンダリング中…(数秒かかるよ)');
+  await new Promise(r => setTimeout(r, 30));   // トースト描画をひと呼吸待つ
+  try {
+    const res = await Teto.render(song, {
+      oto: tetoBank.oto,
+      getFile: async name => {
+        const f = tetoBank.files.get(name);
+        return f ? await f.arrayBuffer() : null;
+      }
+    });
+    if (res.missing.length) toast('代替/欠落: ' + res.missing.slice(0, 5).join(', '));
+    return res;
+  } catch(e){
+    toast(e.message);
+    return null;
+  } finally {
+    tetoBusy = false;
+  }
+}
+async function playTeto(){
+  stop();
+  renderScore();
+  const res = await renderTeto();
+  if (!res) return;
+  if (!res.placed){ toast('うたえる音がなかったよ(音源のエイリアスを確認してね)'); return; }
+  playSamples(res.samples, res.duration, res.timeline);
+}
+async function exportTetoWav(){
+  const res = await renderTeto();
+  if (!res || !res.placed) return;
+  const url = URL.createObjectURL(new Blob([Utau.toWav(res.samples)], {type:'audio/wav'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'utaukun-teto.wav';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('実録音WAVにしたよ!');
+}
+document.getElementById('btnTetoBank').addEventListener('click', () => tetoDirEl.click());
+tetoDirEl.addEventListener('change', () => {
+  if (tetoDirEl.files && tetoDirEl.files.length) loadTetoBank(tetoDirEl.files);
+});
+btnTetoPlay.addEventListener('click', playTeto);
+btnTetoWav.addEventListener('click', exportTetoWav);
 
 const IDLE_LINES = ['うたいたいなあ…', '譜面をはってね!', 'AIに作曲たのんでみて♪', 'きょうもいいこえ!', 'れんしゅうちゅう…らら〜♪'];
 function randomIdleLine(){ return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]; }
