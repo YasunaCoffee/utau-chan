@@ -616,6 +616,12 @@ async function loadTetoBank(fileList){
   btnTetoPlay.disabled = false;
   btnTetoWav.disabled = false;
   toast('テト音源をよみこんだよ');
+  // IndexedDBに保存 → 次にindex.htmlを開いたとき自動復元
+  try {
+    const wavs = new Map();
+    for (const [k, f] of map) wavs.set(k, await f.arrayBuffer());
+    await tetoIdbSave({label, oto: merged, wavs});
+  } catch(e){ console.warn('[teto] IndexedDB保存に失敗(キャッシュなしで続行):', e); }
 }
 async function renderTeto(){
   const song = parseScore();
@@ -631,7 +637,8 @@ async function renderTeto(){
       oto: tetoBank.oto,
       getFile: async name => {
         const f = tetoBank.files.get(name);
-        return f ? await f.arrayBuffer() : null;
+        if (!f) return null;
+        return f instanceof ArrayBuffer ? f : await f.arrayBuffer();  // 復元時はArrayBuffer、選択時はFile
       }
     });
     if (res.missing.length) toast('代替/欠落: ' + res.missing.slice(0, 5).join(', '));
@@ -667,6 +674,50 @@ tetoDirEl.addEventListener('change', () => {
 });
 btnTetoPlay.addEventListener('click', playTeto);
 btnTetoWav.addEventListener('click', exportTetoWav);
+
+/* ---- テト音源のIndexedDBキャッシュ(次にindex.htmlを開くと自動復元) ---- */
+const TETO_DB = 'utau-teto-bank', TETO_STORE = 'bank', TETO_KEY = 'current';
+function tetoIdbOpen(){
+  return new Promise((resolve, reject) => {
+    const rq = indexedDB.open(TETO_DB, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(TETO_STORE);
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+async function tetoIdbSave(rec){
+  const db = await tetoIdbOpen();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(TETO_STORE, 'readwrite');
+      tx.objectStore(TETO_STORE).put(rec, TETO_KEY);
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+  } finally { db.close(); }
+}
+async function tetoIdbLoad(){
+  const db = await tetoIdbOpen();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(TETO_STORE, 'readonly');
+      const rq = tx.objectStore(TETO_STORE).get(TETO_KEY);
+      rq.onsuccess = () => resolve(rq.result || null);
+      rq.onerror = () => reject(rq.error);
+    });
+  } finally { db.close(); }
+}
+async function restoreTetoBank(){
+  let rec = null;
+  try { rec = await tetoIdbLoad(); } catch(e){ return; }
+  if (!rec || !rec.oto || !rec.wavs) return;
+  tetoBank = {oto: rec.oto, files: rec.wavs, label: rec.label || 'UTAU音源'};
+  const m = rec.oto;
+  const kinds = [m.nVcv ? `連続音VCV×${m.nVcv}` : '', m.nCv ? `単独音CV×${m.nCv}` : ''].filter(Boolean).join(' + ');
+  tetoStatusEl.textContent = `音源: ${tetoBank.label}(前回のを復元)\n${kinds} / エイリアス${m.map.size} / WAV ${rec.wavs.size}個`;
+  btnTetoPlay.disabled = false;
+  btnTetoWav.disabled = false;
+}
+if (window.indexedDB) restoreTetoBank();
 
 const IDLE_LINES = ['うたいたいなあ…', '譜面をはってね!', 'AIに作曲たのんでみて♪', 'きょうもいいこえ!', 'れんしゅうちゅう…らら〜♪'];
 function randomIdleLine(){ return IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]; }
