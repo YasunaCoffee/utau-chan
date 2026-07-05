@@ -2,10 +2,10 @@
 /*
  * うたうちゃん → 本家UTAU — うたテキストをUSTプロジェクトファイルに書き出す
  *
- *   node export-ust.js songs/kirakira.uta              → songs/kirakira.ust
- *   node export-ust.js songs/kirakira.uta -o 出力.ust
- *   cat 譜面.uta | node export-ust.js -                → song.ust
- *   node export-ust.js 譜面.uta --utf8                 Shift-JISでなくUTF-8で保存
+ *   node bin/export-ust.js songs/kirakira.uta              → songs/kirakira.ust
+ *   node bin/export-ust.js songs/kirakira.uta -o 出力.ust
+ *   cat 譜面.uta | node bin/export-ust.js -                → song.ust
+ *   node bin/export-ust.js 譜面.uta --utf8                 Shift-JISでなくUTF-8で保存
  *
  * できたUSTは本家UTAU(https://utau2008.xrea.jp/)やOpenUtauでそのまま開けます。
  * 音源(VoiceDir)はUTAU側でプロジェクトのプロパティから選んでください。
@@ -13,14 +13,14 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const Utau = require('./engine.js');
+const Utau = require('../src/engine.js');
 
 const HELP = `
 うたうちゃん USTエクスポート — うたテキストを本家UTAUのプロジェクトファイルにします
 
 つかいかた:
-  node export-ust.js <譜面ファイル.uta> [-o 出力.ust] [--utf8]
-  cat 譜面.uta | node export-ust.js -
+  node bin/export-ust.js <譜面ファイル.uta> [-o 出力.ust] [--utf8]
+  cat 譜面.uta | node bin/export-ust.js -
 
   --utf8 を付けるとUTF-8で保存(既定はShift-JIS。本家UTAUはShift-JIS推奨、
   OpenUtauはどちらでもOK)
