@@ -7,7 +7,7 @@
  */
 'use strict';
 const fs = require('fs');
-const Utau = require('../engine.js');
+const Utau = require('../src/engine.js');
 const SR = 44100;
 const midiToF = m => 440 * Math.pow(2, (m - 69) / 12);
 

@@ -3,25 +3,22 @@
   "version": "1.3.0",
   "description": "AIにたのむと、作曲・調教してキャラクターが歌う。テキスト譜面「うたテキスト」を、フォルマント合成(依存ゼロ)または実録音のUTAU音源で歌わせる、ちいさな歌声合成器。",
   "type": "commonjs",
-  "main": "engine.js",
+  "main": "src/engine.js",
   "bin": {
-    "utaukun": "sing.js",
-    "utaukun-teto": "singteto.js"
+    "utaukun": "bin/sing.js",
+    "utaukun-teto": "bin/singteto.js"
   },
   "scripts": {
-    "sing": "node sing.js",
-    "sing:teto": "node singteto.js",
-    "export:ust": "node export-ust.js",
+    "sing": "node bin/sing.js",
+    "sing:teto": "node bin/singteto.js",
+    "export:ust": "node bin/export-ust.js",
     "analyze": "node tools/analyze-teto.js",
-    "smoke": "node sing.js songs/kirakira.uta -o /tmp/utau-smoke.wav && echo OK"
+    "smoke": "node bin/sing.js songs/kirakira.uta -o /tmp/utau-smoke.wav && echo OK"
   },
   "files": [
-    "engine.js",
-    "synth.js",
-    "sing.js",
-    "singteto.js",
-    "tetoengine.js",
-    "export-ust.js",
+    "src/",
+    "web/",
+    "bin/",
     "index.html",
     "band.html",
     "songs/",

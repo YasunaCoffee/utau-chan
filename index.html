@@ -6,7 +6,7 @@
 <title>うたうちゃん — AIが書いた譜面テキストを歌うプレイヤー</title>
 <meta name="description" content="テキストで書いた譜面(調教記号つき)をボカロ風の合成音声で歌うプレイヤー。AIに譜面を書かせて貼るだけ。インストール不要・WAV保存・共有リンク対応。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♪</text></svg>">
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="web/theme.css">
 <style>
   /* うたうちゃん固有レイアウト(共通テーマは theme.css) */
   #left{width:264px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;}
@@ -152,9 +152,9 @@
 
 <div id="toast"></div>
 
-<script src="engine.js"></script>
-<script src="tetoengine.js"></script>
-<script src="ui.js"></script>
+<script src="src/engine.js"></script>
+<script src="src/tetoengine.js"></script>
+<script src="web/ui.js"></script>
 <script>
 "use strict";
 

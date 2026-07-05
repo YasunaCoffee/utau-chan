@@ -2,22 +2,22 @@
 /*
  * うたうちゃん CLI — うたテキスト → WAV
  *
- *   node sing.js songs/kirakira.uta            → songs/kirakira.wav
- *   node sing.js songs/kirakira.uta -o out.wav
- *   echo "@tempo 120 ..." | node sing.js -     → song.wav
- *   node sing.js --help                        書式の説明
+ *   node bin/sing.js songs/kirakira.uta            → songs/kirakira.wav
+ *   node bin/sing.js songs/kirakira.uta -o out.wav
+ *   echo "@tempo 120 ..." | node bin/sing.js -     → song.wav
+ *   node bin/sing.js --help                        書式の説明
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const Utau = require('./engine.js');
+const Utau = require('../src/engine.js');
 
 const HELP = `
 うたうちゃん CLI — テキスト譜面をうたごえWAVにします
 
 つかいかた:
-  node sing.js <譜面ファイル.uta> [-o 出力.wav]
-  cat 譜面.uta | node sing.js -
+  node bin/sing.js <譜面ファイル.uta> [-o 出力.wav]
+  cat 譜面.uta | node bin/sing.js -
 
 譜面のかきかた(うたテキスト形式):
   # コメント

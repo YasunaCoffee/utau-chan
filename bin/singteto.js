@@ -2,9 +2,9 @@
 /*
  * うたうちゃん × 重音テト — うたテキスト譜面を「実録音サンプル(UTAU音源)」で歌わせる
  *
- *   node singteto.js songs/kirakira.uta            → songs/kirakira.teto.wav
- *   node singteto.js songs/kirakira.uta -o out.wav
- *   node singteto.js songs/kirakira.uta --bank /path/to/音源フォルダ
+ *   node bin/singteto.js songs/kirakira.uta            → songs/kirakira.teto.wav
+ *   node bin/singteto.js songs/kirakira.uta -o out.wav
+ *   node bin/singteto.js songs/kirakira.uta --bank /path/to/音源フォルダ
  *   オプション: --no-vib(ビブラート無効) --dry(残響無効)
  *
  * 通常の sing.js はフォルマント合成(録音なし)。こちらは録音WAV+oto.iniを
@@ -19,15 +19,15 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const Utau = require('./engine.js');
-const Teto = require('./tetoengine.js');
+const Utau = require('../src/engine.js');
+const Teto = require('../src/tetoengine.js');
 
 /* ---- 引数 ---- */
 const args = process.argv.slice(2);
 if (!args.length || args.includes('-h') || args.includes('--help')) {
   console.log(`うたうちゃん × 重音テト — 譜面を実録音サンプルで歌わせる
 つかいかた:
-  node singteto.js <譜面.uta> [-o 出力.wav] [--bank <音源フォルダ>] [--no-vib] [--dry]
+  node bin/singteto.js <譜面.uta> [-o 出力.wav] [--bank <音源フォルダ>] [--no-vib] [--dry]
   連続音(VCV)/単独音(CV)は自動判別。音源は別途DL(再配布禁止)。既定の探索先:
     ~/dev/teto-voicebank/**/(重音テト連続音 または 重音テト単独音)
   環境変数 UTAU_BANK でも指定可。`);
