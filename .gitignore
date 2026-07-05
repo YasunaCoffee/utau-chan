@@ -8,3 +8,9 @@ oto.ini
 
 # USTエクスポートの生成物(export-ust.js の出力)
 *.ust
+
+# Claude Code のワークツリー/一時物
+.claude/worktrees/
+
+# OS/エディタの雑多なファイル
+.DS_Store
